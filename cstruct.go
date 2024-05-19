@@ -2,15 +2,13 @@ package cstruct
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 	"unicode"
 )
 
-func readValue(reader *bytes.Reader, t rune) ([]byte, error) {
+func readValue(reader *bytes.Reader, t CType) ([]byte, error) {
 	// fmt.Printf("Parsing: %c", t)
 	value := []byte{}
 	for i := 0; i < SizeMap[t]; i++ {
@@ -23,74 +21,38 @@ func readValue(reader *bytes.Reader, t rune) ([]byte, error) {
 	return value, nil
 }
 
-func parseValue(value []byte, t rune, order Order) interface{} {
+func parseValue(buffer []byte, t CType, order Order) interface{} {
 	switch t {
 	case PadByte:
 		return nil
 	case Char:
-		return value[0]
+		return parseChar(buffer, order)
 	case SChar:
-		return int8(value[0])
+		return parseSChar(buffer, order)
 	case UChar:
-		return uint8(value[0])
+		return parseUChar(buffer, order)
 	case Bool:
-		return value[0] != 0
+		return parseBool(buffer, order)
 	case Short:
-		if order == BigEndian {
-			return int16(value[0])<<8 | int16(value[1])
-		} else if order == LittleEndian {
-			return int16(value[1])<<8 | int16(value[0])
-		}
+		return parseShort(buffer, order)
 	case UShort:
-		if order == BigEndian {
-			return binary.BigEndian.Uint16(value)
-		} else if order == LittleEndian {
-			return binary.LittleEndian.Uint16(value)
-		}
+		return parseUShort(buffer, order)
 	case Int, Long:
-		if order == BigEndian {
-			return int32(binary.BigEndian.Uint32(value))
-		} else if order == LittleEndian {
-			return int32(binary.LittleEndian.Uint32(value))
-		}
+		return parseIntLong(buffer, order)
 	case UInt, ULong:
-		if order == BigEndian {
-			return binary.BigEndian.Uint32(value)
-		} else if order == LittleEndian {
-			return binary.LittleEndian.Uint32(value)
-		}
+		return parseUIntULong(buffer, order)
 	case LongLong, SSizeT:
-		if order == BigEndian {
-			return int64(binary.BigEndian.Uint64(value))
-		} else if order == LittleEndian {
-			return int64(binary.LittleEndian.Uint64(value))
-		}
+		return parseLongLong(buffer, order)
 	case ULongLong, SizeT:
-		if order == BigEndian {
-			return binary.BigEndian.Uint64(value)
-		} else if order == LittleEndian {
-			return binary.LittleEndian.Uint64(value)
-		}
+		return parseULongLong(buffer, order)
 	case Float16: // 2-byte float
-		if order == BigEndian {
-			return math.Float32frombits(uint32(binary.BigEndian.Uint16(value)))
-		} else if order == LittleEndian {
-			return math.Float32frombits(uint32(binary.LittleEndian.Uint16(value)))
-		}
-	case Float: // 4-byte float
-		if order == BigEndian {
-			return math.Float32frombits(binary.BigEndian.Uint32(value))
-		} else if order == LittleEndian {
-			return math.Float32frombits(binary.LittleEndian.Uint32(value))
-		}
+		return parseFloat16(buffer, order)
+	case Float32: // 4-byte float
+		return parseFloat32(buffer, order)
 	case Double: // 8-byte float
-		if order == BigEndian {
-			return math.Float64frombits(binary.BigEndian.Uint64(value))
-		} else if order == LittleEndian {
-			return math.Float64frombits(binary.LittleEndian.Uint64(value))
-		}
+		return parseDouble(buffer, order)
 	case String:
-		return string(value)
+		return parseString(buffer, order)
 	// case CharP:
 	// 	n := bytes.IndexByte(value, 0)
 	// 	if n == -1 {
@@ -106,177 +68,103 @@ func parseValue(value []byte, t rune, order Order) interface{} {
 	default:
 		return nil
 	}
-	return nil
 }
 
-func buildValue(value interface{}, t rune, order rune) ([]byte, error) {
-	fmt.Println("Build", t, value)
+func buildValue(value interface{}, t CType, order Order) []byte {
 	switch t {
-	case Char, SChar, UChar:
-		// Type assertion to ensure value is of type int8 or uint8
+	case Char:
+		switch v := value.(type) {
+		case rune:
+			return buildChar(v, order)
+		default:
+			return nil
+		}
+	case SChar:
 		switch v := value.(type) {
 		case int8:
-			return []byte{byte(v)}, nil
-		case uint8:
-			return []byte{v}, nil
+			return buildSChar(v, order)
 		default:
-			return nil, fmt.Errorf("unsupported type for character: %T", value)
+			return nil
+		}
+	case UChar:
+		switch v := value.(type) {
+		case uint8:
+			return buildUChar(v, order)
+		default:
+			return nil
 		}
 	case Bool:
 		switch v := value.(type) {
 		case bool:
-			if v {
-				// true is represented as 1
-				return []byte{1}, nil
-			} else {
-				// false is represented as 0
-				return []byte{0}, nil
-			}
+			return buildBool(v, order)
 		default:
-			return nil, fmt.Errorf("unsupported type for character: %T", value)
+			return nil
 		}
-
-	case Short, UShort:
-		// Type assertion to ensure value is of type int16 or uint16
-		if v, ok := value.(int16); ok {
-			bytes := make([]byte, 2)
-			if order == '<' {
-				binary.LittleEndian.PutUint16(bytes, uint16(v))
-			} else if order == '>' {
-				binary.BigEndian.PutUint16(bytes, uint16(v))
-			} else {
-				return nil, fmt.Errorf("unknown byte order: %v", order)
-			}
-			return bytes, nil
-		} else if v, ok := value.(uint16); ok {
-			bytes := make([]byte, 2)
-			if order == '<' {
-				binary.LittleEndian.PutUint16(bytes, v)
-			} else if order == '>' {
-				binary.BigEndian.PutUint16(bytes, v)
-			} else {
-				return nil, fmt.Errorf("unknown byte order: %v", order)
-			}
-			return bytes, nil
+	case Short:
+		switch v := value.(type) {
+		case int16:
+			return buildShort(v, order)
+		default:
+			return nil
 		}
-		return nil, fmt.Errorf("unsupported type for Short/UShort: %T", value)
-	// case Short:
-	// 	// Type assertion to ensure value is of type int16
-	// 	if v, ok := value.(int16); ok {
-	// 		// Convert int16 to byte slice (little-endian)
-	// 		return []byte{byte(v), byte(v >> 8)}, nil
-	// 	}
-	// 	return nil, fmt.Errorf("unsupported type for Short: %T", value)
-	// case UShort:
-	// 	// Type assertion to ensure value is of type uint16
-	// 	if v, ok := value.(uint16); ok {
-	// 		// Convert uint16 to byte slice (little-endian)
-	// 		return []byte{byte(v), byte(v >> 8)}, nil
-	// 	}
-	// 	return nil, fmt.Errorf("unsupported type for UShort: %T", value)
-	case Long:
-		// Type assertion to ensure value is of type int32
-		if v, ok := value.(int32); ok {
-			// Convert int32 to byte slice (little-endian)
-			bytes := make([]byte, 4)
-			binary.LittleEndian.PutUint32(bytes, uint32(v))
-			return bytes, nil
+	case UShort:
+		switch v := value.(type) {
+		case uint16:
+			return buildUShort(v, order)
+		default:
+			return nil
 		}
-		return nil, fmt.Errorf("unsupported type for Long: %T", value)
-	case ULong:
-		// Type assertion to ensure value is of type uint32
-		if v, ok := value.(uint32); ok {
-			// Convert uint32 to byte slice (little-endian)
-			bytes := make([]byte, 4)
-			binary.LittleEndian.PutUint32(bytes, v)
-			return bytes, nil
+	case Int, Long:
+		switch v := value.(type) {
+		case int32:
+			return buildIntLong(v, order)
+		default:
+			return nil
 		}
-		return nil, fmt.Errorf("unsupported type for ULong: %T", value)
+	case UInt, ULong:
+		switch v := value.(type) {
+		case uint32:
+			return buildUIntULong(v, order)
+		default:
+			return nil
+		}
 	case LongLong:
-		// Type assertion to ensure value is of type int64
-		if v, ok := value.(int64); ok {
-			// Convert int64 to byte slice (little-endian)
-			bytes := make([]byte, 8)
-			binary.LittleEndian.PutUint64(bytes, uint64(v))
-			return bytes, nil
+		switch v := value.(type) {
+		case int64:
+			return buildLongLong(v, order)
+		default:
+			return nil
 		}
-		return nil, fmt.Errorf("unsupported type for LongLong: %T", value)
 	case ULongLong:
-		// Type assertion to ensure value is of type uint64
-		if v, ok := value.(uint64); ok {
-			// Convert uint64 to byte slice (little-endian)
-			bytes := make([]byte, 8)
-			binary.LittleEndian.PutUint64(bytes, v)
-			return bytes, nil
+		switch v := value.(type) {
+		case uint64:
+			return buildULongLong(v, order)
+		default:
+			return nil
 		}
-		return nil, fmt.Errorf("unsupported type for ULongLong: %T", value)
-	case SSizeT:
-		// Type assertion to ensure value is of type int
-		if v, ok := value.(int); ok {
-			// Convert int to byte slice (little-endian)
-			bytes := make([]byte, 4) // Assuming 4 bytes for SSizeT
-			binary.LittleEndian.PutUint32(bytes, uint32(v))
-			return bytes, nil
-		}
-		return nil, fmt.Errorf("unsupported type for SSizeT: %T", value)
-	case SizeT:
-		// Type assertion to ensure value is of type uint
-		if v, ok := value.(uint); ok {
-			// Convert uint to byte slice (little-endian)
-			bytes := make([]byte, 4) // Assuming 4 bytes for SizeT
-			binary.LittleEndian.PutUint32(bytes, uint32(v))
-			return bytes, nil
-		}
-		return nil, fmt.Errorf("unsupported type for SizeT: %T", value)
 	case Float16:
-		// Type assertion to ensure value is of type float32
-		if v, ok := value.(float32); ok {
-			// Convert float32 to 16-bit floating-point number (half-precision float)
-			intValue := math.Float32bits(v)
-			halfPrecisionValue := uint16(intValue >> 16) // Use upper 16 bits
-			// Convert 16-bit floating-point number to byte slice (little-endian)
-			bytes := make([]byte, 2)
-			binary.LittleEndian.PutUint16(bytes, halfPrecisionValue)
-			return bytes, nil
+		switch v := value.(type) {
+		case float32:
+			return buildFloat16(v, order)
+		default:
+			return nil
 		}
-		return nil, fmt.Errorf("unsupported type for Float16: %T", value)
-	case Float:
-		// Type assertion to ensure value is of type float32
-		if v, ok := value.(float32); ok {
-			// Convert float32 to byte slice (little-endian)
-			bytes := make([]byte, 4)
-			binary.LittleEndian.PutUint32(bytes, math.Float32bits(v))
-			return bytes, nil
+	case Float32:
+		switch v := value.(type) {
+		case float32:
+			return buildFloat32(v, order)
+		default:
+			return nil
 		}
-		return nil, fmt.Errorf("unsupported type for Float: %T", value)
 	case Double:
-		// Type assertion to ensure value is of type float64
-		if v, ok := value.(float64); ok {
-			// Convert float64 to byte slice (little-endian)
-			bytes := make([]byte, 8)
-			binary.LittleEndian.PutUint64(bytes, math.Float64bits(v))
-			return bytes, nil
+		switch v := value.(type) {
+		case float64:
+			return buildDouble(v, order)
+		default:
+			return nil
 		}
-		return nil, fmt.Errorf("unsupported type for Double: %T", value)
-	// case CharP:
-	// 	// Type assertion to ensure value is a string
-	// 	if v, ok := value.(string); ok {
-	// 		// Convert string to byte slice
-	// 		bytes := []byte(v)
-	// 		// Return the byte slice representing the string
-	// 		return bytes, nil
-	// 	}
-	// 	return nil, fmt.Errorf("unsupported type for CharP: %T", value)
-	// case VoidP:
-	// 	// Type assertion to ensure value is a pointer
-	// 	if v, ok := value.(uintptr); ok {
-	// 		// Convert pointer to byte slice
-	// 		ptrBytes := (*[unsafe.Sizeof(v)]byte)(unsafe.Pointer(v))[:]
-	// 		return ptrBytes, nil
-	// 	}
-	// 	return nil, fmt.Errorf("unsupported type for VoidP: %T", value)
 	default:
-		return nil, fmt.Errorf("unknown type: %v", t)
+		return nil
 	}
 }
 
@@ -287,21 +175,22 @@ func Unpack(format string, data []byte) ([]interface{}, error) {
 	var parsed []interface{}
 	reader := bytes.NewReader(data)
 
-	if _, ok := OrderMap[rune(format[0])]; ok {
-		order = OrderMap[rune(format[0])]
+	if ord, ok := OrderMap[rune(format[0])]; ok {
+		order = ord
 	}
 
-	for _, t := range format {
+	for _, cTypeRune := range format {
+		cType := CType(cTypeRune)
 
-		if unicode.IsDigit(t) {
-			num_str += string(t)
+		if unicode.IsDigit(cTypeRune) {
+			num_str += string(cType)
 			continue
 		}
 
-		if unicode.IsLetter(t) {
+		if unicode.IsLetter(cTypeRune) {
 
-			if _, ok := TypesNames[rune(t)]; !ok {
-				return nil, fmt.Errorf("error: bad char ('%c') in struct format", t)
+			if _, ok := TypesNames[cType]; !ok {
+				return nil, fmt.Errorf("error: bad char ('%c') in struct format", cType)
 			}
 
 			num, err := strconv.Atoi(num_str)
@@ -310,10 +199,10 @@ func Unpack(format string, data []byte) ([]interface{}, error) {
 			}
 			num_str = ""
 
-			if t == String {
+			if cType == String {
 				value := ""
 				for i := 0; i < num; i++ {
-					if rawValue, err := readValue(reader, t); err != nil {
+					if rawValue, err := readValue(reader, cType); err != nil {
 						return nil, fmt.Errorf("EOF: data content size less than format requires")
 					} else {
 						value += string(rawValue)
@@ -325,10 +214,10 @@ func Unpack(format string, data []byte) ([]interface{}, error) {
 
 			for i := 0; i < num; i++ {
 
-				if rawValue, err := readValue(reader, t); err != nil {
+				if rawValue, err := readValue(reader, cType); err != nil {
 					return nil, fmt.Errorf("EOF: data content size less than format requires")
 				} else {
-					if value := parseValue(rawValue, t, order); value != nil {
+					if value := parseValue(rawValue, cType, order); value != nil {
 						parsed = append(parsed, value)
 					}
 				}

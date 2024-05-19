@@ -6,6 +6,7 @@ import (
 )
 
 type Order rune
+type CType rune
 
 const ( // order and alignment
 	LittleEndian Order = '<'
@@ -24,30 +25,30 @@ var OrderMap = map[rune]Order{
 }
 
 const (
-	PadByte   = 'x' // no value
-	Char      = 'c' // bytes of length 1
-	SChar     = 'b' // signed char -> 1 byte integer
-	UChar     = 'B' // unsigned char -> 1 byte integer
-	Bool      = '?' // 1 byte bool
-	Short     = 'h' // short -> 2 byte integer
-	UShort    = 'H' // unsigned short -> 2 byte integer
-	Int       = 'i' // int -> 4 byte integer
-	UInt      = 'I' // unsigned int -> 4 byte integer
-	Long      = 'l' // long -> 4 byte integer
-	ULong     = 'L' // unsigned long -> 4 byte integer
-	LongLong  = 'q' // long long -> 8 byte integer
-	ULongLong = 'Q' // unsigned long long -> 8 byte integer
-	SSizeT    = 'n' // ssize_t -> integer
-	SizeT     = 'N' // size_t -> integer
-	Float16   = 'e' // 2 byte float
-	Float     = 'f' // 4 byte float
-	Double    = 'd' // 8 byte float
-	String    = 's' // -> byteArray
-	CharP     = 'p' // -> byteArray
-	VoidP     = 'P' // -> integer
+	PadByte   CType = 'x' // no value
+	Char      CType = 'c' // bytes of length 1
+	SChar     CType = 'b' // signed char -> 1 byte integer
+	UChar     CType = 'B' // unsigned char -> 1 byte integer
+	Bool      CType = '?' // 1 byte bool
+	Short     CType = 'h' // short -> 2 byte integer
+	UShort    CType = 'H' // unsigned short -> 2 byte integer
+	Int       CType = 'i' // int -> 4 byte integer
+	UInt      CType = 'I' // unsigned int -> 4 byte integer
+	Long      CType = 'l' // long -> 4 byte integer
+	ULong     CType = 'L' // unsigned long -> 4 byte integer
+	LongLong  CType = 'q' // long long -> 8 byte integer
+	ULongLong CType = 'Q' // unsigned long long -> 8 byte integer
+	SSizeT    CType = 'n' // ssize_t -> integer
+	SizeT     CType = 'N' // size_t -> integer
+	Float16   CType = 'e' // 2 byte float
+	Float32   CType = 'f' // 4 byte float
+	Double    CType = 'd' // 8 byte float
+	String    CType = 's' // -> byteArray
+	CharP     CType = 'p' // -> byteArray
+	VoidP     CType = 'P' // -> integer
 )
 
-var TypesNames = map[rune]string{
+var TypesNames = map[CType]string{
 	'x': "PadByte", // PadByte
 	'c': "Char",
 	'b': "SChar",
@@ -71,7 +72,7 @@ var TypesNames = map[rune]string{
 	'P': "VoidP",
 }
 
-var SizeMap = map[rune]int{
+var SizeMap = map[CType]int{
 	'x': 1,
 	'c': 1,
 	'b': 1,
