@@ -1,3 +1,3 @@
-module github.com/fananchong/pystruct-go
+module github.com/o-murphy/pystruct-go
 
 go 1.20
