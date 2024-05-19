@@ -1,54 +1,89 @@
-package cstruct
+package pystruct
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 )
 
 type Order rune
-type CType rune
+type CFormatRune rune
 
 const ( // order and alignment
-	LittleEndian Order = '<'
-	BigEndian    Order = '>'
-	// NativeOrderSize = '@'
-	// NativeOrder     = '='
-	// Network         = '!'
+	LittleEndian    Order = '<'
+	BigEndian       Order = '>'
+	NativeOrderSize Order = '@'
+	NativeOrder     Order = '='
+	NetworkOrder    Order = '!'
+	UnknownOrder    Order = 'e'
 )
 
 var OrderMap = map[rune]Order{
 	'<': LittleEndian,
 	'>': BigEndian,
-	// '@': "NativeOrderSize",
-	// '=': "NativeOrder",
-	// '!': "Network",
+	'@': NativeOrderSize,
+	'=': NativeOrder,
+	'!': NetworkOrder,
+}
+
+var OrderStringMap = map[Order]string{
+	LittleEndian:    "LittleEndian",
+	BigEndian:       "BigEndian",
+	NetworkOrder:    "NetworkOrder",
+	NativeOrder:     "NativeOrder",
+	NativeOrderSize: "NativeOrderSize",
+	UnknownOrder:    "UnknownOrder",
 }
 
 const (
-	PadByte   CType = 'x' // no value
-	Char      CType = 'c' // bytes of length 1
-	SChar     CType = 'b' // signed char -> 1 byte integer
-	UChar     CType = 'B' // unsigned char -> 1 byte integer
-	Bool      CType = '?' // 1 byte bool
-	Short     CType = 'h' // short -> 2 byte integer
-	UShort    CType = 'H' // unsigned short -> 2 byte integer
-	Int       CType = 'i' // int -> 4 byte integer
-	UInt      CType = 'I' // unsigned int -> 4 byte integer
-	Long      CType = 'l' // long -> 4 byte integer
-	ULong     CType = 'L' // unsigned long -> 4 byte integer
-	LongLong  CType = 'q' // long long -> 8 byte integer
-	ULongLong CType = 'Q' // unsigned long long -> 8 byte integer
-	SSizeT    CType = 'n' // ssize_t -> integer
-	SizeT     CType = 'N' // size_t -> integer
-	Float16   CType = 'e' // 2 byte float
-	Float32   CType = 'f' // 4 byte float
-	Double    CType = 'd' // 8 byte float
-	String    CType = 's' // -> byteArray
-	CharP     CType = 'p' // -> byteArray
-	VoidP     CType = 'P' // -> integer
+	PadByte   CFormatRune = 'x' // no value
+	Char      CFormatRune = 'c' // bytes of length 1
+	SChar     CFormatRune = 'b' // signed char -> 1 byte integer
+	UChar     CFormatRune = 'B' // unsigned char -> 1 byte integer
+	Bool      CFormatRune = '?' // 1 byte bool
+	Short     CFormatRune = 'h' // short -> 2 byte integer
+	UShort    CFormatRune = 'H' // unsigned short -> 2 byte integer
+	Int       CFormatRune = 'i' // int -> 4 byte integer
+	UInt      CFormatRune = 'I' // unsigned int -> 4 byte integer
+	Long      CFormatRune = 'l' // long -> 4 byte integer
+	ULong     CFormatRune = 'L' // unsigned long -> 4 byte integer
+	LongLong  CFormatRune = 'q' // long long -> 8 byte integer
+	ULongLong CFormatRune = 'Q' // unsigned long long -> 8 byte integer
+	SSizeT    CFormatRune = 'n' // ssize_t -> integer
+	SizeT     CFormatRune = 'N' // size_t -> integer
+	Float16   CFormatRune = 'e' // 2 byte float
+	Float32   CFormatRune = 'f' // 4 byte float
+	Double    CFormatRune = 'd' // 8 byte float
+	String    CFormatRune = 's' // -> byteArray
+	CharP     CFormatRune = 'p' // -> byteArray
+	VoidP     CFormatRune = 'P' // -> integer
 )
 
-var TypesNames = map[CType]string{
+var CFormatMap = map[CFormatRune]CFormatRune{
+	'x': PadByte,
+	'c': Char,
+	'b': SChar,
+	'B': UChar,
+	'?': Bool,
+	'h': Short,
+	'H': UShort,
+	'i': Int,
+	'I': UInt,
+	'l': Long,
+	'L': ULong,
+	'q': LongLong,
+	'Q': ULongLong,
+	'n': SSizeT,
+	'N': SizeT,
+	'e': Float16,
+	'f': Float32,
+	'd': Double,
+	's': String,
+	'p': CharP,
+	'P': VoidP,
+}
+
+var CFormatStringMap = map[CFormatRune]string{
 	'x': "PadByte", // PadByte
 	'c': "Char",
 	'b': "SChar",
@@ -64,15 +99,15 @@ var TypesNames = map[CType]string{
 	'Q': "ULongLong",
 	'n': "SSizeT",
 	'N': "SizeT",
-	'e': "E",
-	'f': "F",
-	'd': "D",
+	'e': "Float16",
+	'f': "Float32",
+	'd': "Double",
 	's': "String",
 	'p': "CharP",
 	'P': "VoidP",
 }
 
-var SizeMap = map[CType]int{
+var SizeMap = map[CFormatRune]int{
 	'x': 1,
 	'c': 1,
 	'b': 1,
@@ -96,35 +131,60 @@ var SizeMap = map[CType]int{
 	'P': 0,
 }
 
-func parseChar(buffer []byte, order Order) rune {
+func getNativeOrder() Order {
+	var nativeEndian binary.ByteOrder
+	if nativeEndian = binary.LittleEndian; nativeEndian == binary.BigEndian {
+		return BigEndian
+	} else {
+		return LittleEndian
+	}
+}
+
+func getOrder(order rune) (Order, error) {
+	if ord, ok := OrderMap[order]; ok {
+		switch ord {
+		case LittleEndian:
+			return LittleEndian, nil
+		case BigEndian:
+			return BigEndian, nil
+		case NetworkOrder:
+			return BigEndian, nil
+		default:
+			return getNativeOrder(), nil
+		}
+	}
+	return UnknownOrder, fmt.Errorf("error: bad char ('%c') in struct format", order)
+}
+
+func parseChar(buffer []byte) rune {
 	return rune(buffer[0])
 }
 
-func buildChar(value rune, order Order) []byte {
+func buildChar(value rune) []byte {
 	return []byte{byte(value)}
 }
 
-func parseSChar(buffer []byte, order Order) int8 {
+func parseSChar(buffer []byte) int8 {
 	return int8(buffer[0])
 }
 
-func buildSChar(value int8, order Order) []byte {
+func buildSChar(value int8) []byte {
 	return []byte{byte(value)}
 }
 
-func parseUChar(buffer []byte, order Order) uint8 {
+func parseUChar(buffer []byte) uint8 {
 	return uint8(buffer[0])
 }
 
-func buildUChar(value uint8, order Order) []byte {
+func buildUChar(value uint8) []byte {
 	return []byte{value}
 }
 
-func parseBool(buffer []byte, order Order) bool {
+func parseBool(buffer []byte) bool {
 	return buffer[0] != 0
 }
 
-func buildBool(value bool, order Order) []byte {
+func buildBool(value bool) []byte {
 	if value {
 		// true is represented as 1
 		return []byte{1}
@@ -351,10 +411,157 @@ func buildDouble(value float64, order Order) []byte {
 	return bytes
 }
 
-func parseString(buffer []byte, order Order) string {
+func parseString(buffer []byte) string {
 	return string(buffer)
 }
 
-func buildString(value string, order Order) []byte {
+func buildString(value string) []byte {
 	return []byte(value)
+}
+
+func parseValue(buffer []byte, cFormatRune CFormatRune, order Order) interface{} {
+	switch cFormatRune {
+	case PadByte:
+		return nil
+	case Char:
+		return parseChar(buffer)
+	case SChar:
+		return parseSChar(buffer)
+	case UChar:
+		return parseUChar(buffer)
+	case Bool:
+		return parseBool(buffer)
+	case Short:
+		return parseShort(buffer, order)
+	case UShort:
+		return parseUShort(buffer, order)
+	case Int, Long:
+		return parseIntLong(buffer, order)
+	case UInt, ULong:
+		return parseUIntULong(buffer, order)
+	case LongLong, SSizeT:
+		return parseLongLong(buffer, order)
+	case ULongLong, SizeT:
+		return parseULongLong(buffer, order)
+	case Float16: // 2-byte float
+		return parseFloat16(buffer, order)
+	case Float32: // 4-byte float
+		return parseFloat32(buffer, order)
+	case Double: // 8-byte float
+		return parseDouble(buffer, order)
+	case String:
+		return parseString(buffer)
+	// case CharP:
+	// 	n := bytes.IndexByte(value, 0)
+	// 	if n == -1 {
+	// 		n = len(value)
+	// 	}
+	// 	return string(value[:n])
+	// case VoidP:
+	// 	if order == BigEndian {
+	// 		return binary.BigEndian.Uint64(value)
+	// 	} else if order == LittleEndian {
+	// 		return binary.LittleEndian.Uint64(value)
+	// 	}
+	default:
+		return nil
+	}
+}
+
+func buildValue(value interface{}, cFormatRune CFormatRune, order Order) []byte {
+	switch cFormatRune {
+	case Char:
+		switch v := value.(type) {
+		case rune:
+			return buildChar(v)
+		default:
+			return nil
+		}
+	case SChar:
+		switch v := value.(type) {
+		case int8:
+			return buildSChar(v)
+		default:
+			return nil
+		}
+	case UChar:
+		switch v := value.(type) {
+		case uint8:
+			return buildUChar(v)
+		default:
+			return nil
+		}
+	case Bool:
+		switch v := value.(type) {
+		case bool:
+			return buildBool(v)
+		default:
+			return nil
+		}
+	case Short:
+		switch v := value.(type) {
+		case int16:
+			return buildShort(v, order)
+		default:
+			return nil
+		}
+	case UShort:
+		switch v := value.(type) {
+		case uint16:
+			return buildUShort(v, order)
+		default:
+			return nil
+		}
+	case Int, Long:
+		switch v := value.(type) {
+		case int32:
+			return buildIntLong(v, order)
+		default:
+			return nil
+		}
+	case UInt, ULong:
+		switch v := value.(type) {
+		case uint32:
+			return buildUIntULong(v, order)
+		default:
+			return nil
+		}
+	case LongLong:
+		switch v := value.(type) {
+		case int64:
+			return buildLongLong(v, order)
+		default:
+			return nil
+		}
+	case ULongLong:
+		switch v := value.(type) {
+		case uint64:
+			return buildULongLong(v, order)
+		default:
+			return nil
+		}
+	case Float16:
+		switch v := value.(type) {
+		case float32:
+			return buildFloat16(v, order)
+		default:
+			return nil
+		}
+	case Float32:
+		switch v := value.(type) {
+		case float32:
+			return buildFloat32(v, order)
+		default:
+			return nil
+		}
+	case Double:
+		switch v := value.(type) {
+		case float64:
+			return buildDouble(v, order)
+		default:
+			return nil
+		}
+	default:
+		return nil
+	}
 }
