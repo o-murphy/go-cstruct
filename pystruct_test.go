@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"pystruct"
+	pystruct "github.com/o-murphy/pystruct-go"
 )
 
 func TestCalcSize(t *testing.T) {
