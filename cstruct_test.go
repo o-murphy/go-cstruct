@@ -14,6 +14,7 @@ func TestUnpack(t *testing.T) {
 		fmt.Println(intf...)
 	} else {
 		fmt.Println(err)
+		t.Errorf("Unbound error")
 	}
 
 	if len(intf) != 2 {
@@ -31,3 +32,16 @@ func TestUnpack(t *testing.T) {
 		t.Errorf("Second element is not a float32")
 	}
 }
+
+// func TestPack(t *testing.T) {
+// 	dataToPack := []interface{}{"abc", 1.01}
+
+// 	byteArray, err := cstruct.Pack("<3sf", dataToPack)
+
+// 	if err == nil {
+// 		fmt.Println(byteArray)
+// 	} else {
+// 		fmt.Println(err)
+// 	}
+
+// }
