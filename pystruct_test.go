@@ -1,6 +1,7 @@
 package pystruct_test
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 	"unicode"
@@ -59,21 +60,37 @@ func TestUnpack(t *testing.T) {
 }
 
 func TestIterUnpack(t *testing.T) {
-	format := `<3sf`
+	format := `<3si`
 	byteArray := []byte{97, 98, 99, 100, 101, 102, 103}
+
+	// iterator, errs := pystruct.IterUnpack(format, byteArray)
+	// for i, value := 0, <-iterator; errs == nil; i, value = i+1, <-iterator {
+	// 	fmt.Println(i, value)
+	// }
 
 	iterator, errs := pystruct.IterUnpack(format, byteArray)
 
 	i := 0
 	for value := range iterator {
-		switch v := value.(type) {
-		case string:
-			if v != "abc" {
-				t.Errorf("Wring string")
+		switch i {
+		case 0:
+			switch v := value.(type) {
+			case string:
+				if v != "abc" {
+					t.Errorf("Wring string")
+				}
+			default:
+				t.Errorf("Unexpected type")
 			}
-		case float32:
-
+		case 1:
+			switch v := value.(type) {
+			case int8:
+				if v != 101 {
+					t.Errorf("Wring string")
+				}
+			}
 		}
+
 		i += 1
 	}
 
@@ -99,7 +116,7 @@ func TestUnpackFrom(t *testing.T) {
 	}
 
 	if intf[0] != "abc" {
-		t.Errorf("Wrong parsed value 0")
+		t.Errorf("Wrong parsed value %v", intf[0])
 	}
 
 	if f, ok := intf[1].(float32); !ok {
@@ -110,12 +127,52 @@ func TestUnpackFrom(t *testing.T) {
 }
 
 func TestPack(t *testing.T) {
+	// intf := []interface{}{"abc", 1.01, 3}
 	intf := []interface{}{"abc", 1.01}
-	byteArray, err := pystruct.Pack("<3sf", intf)
+	// intf := []interface{}{"abc"}
+	byteArray, err := pystruct.Pack("<3sf", intf...)
+	expected := []byte{97, 98, 99, 174, 71, 129, 63}
 
 	if err != nil {
 		t.Error("Unbound error:", err)
-	} else {
-		fmt.Println("byteArray:", byteArray)
 	}
+
+	if !bytes.Equal(byteArray, expected) {
+		t.Errorf("Expected: %v\nActual: %v\n", expected, byteArray)
+	}
+
+	fmt.Println("PASS: TestPack")
+}
+
+func TestPackInto(t *testing.T) {
+	intf := []interface{}{"abc", 1.01}
+	buffer := []byte{0xff, 0xff, 0xff, 0xff}
+	byteArray, err := pystruct.PackInto("<3sf", buffer, 2, intf...)
+
+	expected := []byte{0xff, 0xff, 97, 98, 99, 174, 71, 129, 63}
+
+	if err != nil {
+		t.Error("Unbound error:", err)
+	}
+
+	if !bytes.Equal(byteArray, expected) {
+		t.Errorf("Expected: %v\nActual: %v\n", expected, byteArray)
+	}
+
+	fmt.Println("PASS: TestPackInto")
+}
+
+func TestWrongOrder(t *testing.T) {
+	byteArray := []byte{97, 98, 99, 100, 101, 102, 103}
+	_, err := pystruct.Unpack(`3sf`, byteArray)
+
+	if err != nil {
+		t.Error("Get order error:", err)
+	}
+
+	_, err = pystruct.Unpack(`3<sf`, byteArray)
+	if err == nil {
+		t.Error("Order pos error:", err)
+	}
+	fmt.Println("PASS: TestWrongOrder")
 }

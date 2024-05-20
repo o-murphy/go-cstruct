@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"unicode"
 )
 
 func readValue(reader *bytes.Reader, t CFormatRune) ([]byte, error) {
@@ -21,6 +20,22 @@ func readValue(reader *bytes.Reader, t CFormatRune) ([]byte, error) {
 	return value, nil
 }
 
+func checkFormatAndBufSize(format string, expected_size int) error {
+	fmt_size, err := CalcSize(format)
+	switch {
+	case err != nil:
+		return err
+	case fmt_size != expected_size:
+		return fmt.Errorf("struct.error: unpack requires a buffer of %d bytes", fmt_size)
+	default:
+		return nil
+	}
+}
+
+// CalcSize(format)
+// Return the size of the struct
+// (and hence of the bytes object produced by pack(format, ...))
+// corresponding to the format string format
 func CalcSize(format string) (int, error) {
 	num := 0
 	size := 0
@@ -46,7 +61,7 @@ func CalcSize(format string) (int, error) {
 			num = 1
 		}
 
-		if _, ok := CFormatMap[cFormatRune]; !ok && !unicode.IsLetter(sRune) {
+		if _, ok := CFormatMap[cFormatRune]; !ok {
 			return -1, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 		}
 
@@ -56,20 +71,12 @@ func CalcSize(format string) (int, error) {
 	return size, nil
 }
 
-func checkFormatAndSize(format string, expected_size int) error {
-	fmt_size, err := CalcSize(format)
-	switch {
-	case err != nil:
-		return err
-	case fmt_size < expected_size, expected_size > expected_size:
-		return fmt.Errorf("struct.error: unpack requires a buffer of %d bytes", fmt_size)
-	default:
-		return nil
-	}
-}
+// Pack(format, v1, v2, ...)
+// Return a bytes object containing the values v1, v2, … packed according to the format string format.
+// The arguments must match the values required by the format exactly.
+func Pack(format string, intf ...interface{}) ([]byte, error) {
 
-func Pack(format string, intf []interface{}) ([]byte, error) {
-	if err := checkFormatAndSize(format, len(intf)); err != nil {
+	if _, err := CalcSize(format); err != nil {
 		return nil, err
 	}
 
@@ -77,16 +84,18 @@ func Pack(format string, intf []interface{}) ([]byte, error) {
 	index := 0
 	var buffer []byte
 
-	order, err := getOrder(rune(format[0]))
-	if err != nil {
-		return nil, err
-	}
-
-	if _, ok := OrderMap[rune(format[0])]; ok {
+	order, _ := getOrder(rune(format[0]))
+	if order != nil {
 		format = format[1:]
+	} else {
+		order = getNativeOrder()
 	}
 
 	for _, sRune := range format {
+		if index+1 > len(intf) {
+			return buffer, fmt.Errorf("struct.error: index error, number of interface items less than format requires")
+		}
+
 		cFormatRune := CFormatRune(sRune)
 
 		if add, err := strconv.Atoi(string(sRune)); err == nil {
@@ -99,7 +108,7 @@ func Pack(format string, intf []interface{}) ([]byte, error) {
 			continue
 		}
 
-		if _, ok := CFormatMap[cFormatRune]; !ok && !unicode.IsLetter(sRune) {
+		if _, ok := CFormatMap[cFormatRune]; !ok {
 			return nil, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 		}
 
@@ -135,13 +144,46 @@ func Pack(format string, intf []interface{}) ([]byte, error) {
 		num = 0
 
 	}
-
+	if len(intf) > index {
+		return buffer, fmt.Errorf("struct.error: found %d extra items that wouldn't be parsed", len(intf)-index)
+	}
 	return buffer, nil
 }
 
+// PackInto(format, buffer, offset, v1, v2, ...)
+// Pack the values v1, v2, … according to the format string format
+// and write the packed bytes into the writable buffer
+// starting at position offset. Note that offset is a required argument.
+func PackInto(format string, buffer []byte, offset int, intf ...interface{}) ([]byte, error) {
+	partBuf, err := Pack(format, intf...)
+	if err != nil {
+		return nil, err
+	}
+
+	if offset < 0 {
+		return nil, fmt.Errorf("struct.error: offset have to be >= 0")
+	}
+
+	// Ensure buffer is large enough
+	requiredLength := offset + len(partBuf)
+	if requiredLength > len(buffer) {
+		// Expand the buffer
+		newBuffer := make([]byte, requiredLength)
+		copy(newBuffer, buffer)
+		buffer = newBuffer
+	}
+
+	copy(buffer[offset:], partBuf)
+	return buffer, nil
+}
+
+// Unpack(format, buffer)
+// Unpack from the buffer buffer (presumably packed by Pack(format, ...))
+// according to the format string format. The result is an []interface{} even if it contains exactly one item.
+// The buffer’s size in bytes must match the size required by the format, as reflected by CalcSize().
 func Unpack(format string, buffer []byte) ([]interface{}, error) {
 
-	if err := checkFormatAndSize(format, len(buffer)); err != nil {
+	if err := checkFormatAndBufSize(format, len(buffer)); err != nil {
 		return nil, err
 	}
 
@@ -149,13 +191,11 @@ func Unpack(format string, buffer []byte) ([]interface{}, error) {
 	var parsedValues []interface{}
 	reader := bytes.NewReader(buffer)
 
-	order, err := getOrder(rune(format[0]))
-	if err != nil {
-		return nil, err
-	}
-
-	if _, ok := OrderMap[rune(format[0])]; ok {
+	order, _ := getOrder(rune(format[0]))
+	if order != nil {
 		format = format[1:]
+	} else {
+		order = getNativeOrder()
 	}
 
 	for _, sRune := range format {
@@ -171,7 +211,7 @@ func Unpack(format string, buffer []byte) ([]interface{}, error) {
 			continue
 		}
 
-		if _, ok := CFormatMap[cFormatRune]; !ok && !unicode.IsLetter(sRune) {
+		if _, ok := CFormatMap[cFormatRune]; !ok {
 			return nil, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 		}
 
@@ -210,7 +250,10 @@ func Unpack(format string, buffer []byte) ([]interface{}, error) {
 
 }
 
-// Iterator function to unpack the data
+// IterUnpack(format, buffer)
+// Iteratively unpack from the buffer buffer according to the format string format.
+// This function returns an iterator which will read equally sized chunks from the buffer until all its contents have been consumed.
+// The buffer’s size in bytes must be a multiple of the size required by the format, as reflected by CalcSize()
 func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error) {
 
 	parsedValues := make(chan interface{})
@@ -220,7 +263,7 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 		defer close(parsedValues)
 		defer close(errors)
 
-		if err := checkFormatAndSize(format, len(buffer)); err != nil {
+		if err := checkFormatAndBufSize(format, len(buffer)); err != nil {
 			errors <- err
 			return
 		}
@@ -228,14 +271,11 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 		num := 0
 		reader := bytes.NewReader(buffer)
 
-		order, err := getOrder(rune(format[0]))
-		if err != nil {
-			errors <- err
-			return
-		}
-
-		if _, ok := OrderMap[rune(format[0])]; ok {
+		order, _ := getOrder(rune(format[0]))
+		if order != nil {
 			format = format[1:]
+		} else {
+			order = getNativeOrder()
 		}
 
 		for _, sRune := range format {
@@ -251,7 +291,7 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 				continue
 			}
 
-			if _, ok := CFormatMap[cFormatRune]; !ok && !unicode.IsLetter(sRune) {
+			if _, ok := CFormatMap[cFormatRune]; !ok {
 				errors <- fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 				return
 			}
@@ -264,7 +304,7 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 				value := ""
 				for i := 0; i < num; i++ {
 					if rawValue, err := readValue(reader, cFormatRune); err != nil {
-						errors <- fmt.Errorf("EOF: data content size less than format requires")
+						errors <- err
 						return
 					} else {
 						value += string(rawValue)
@@ -277,7 +317,7 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 
 			for i := 0; i < num; i++ {
 				if rawValue, err := readValue(reader, cFormatRune); err != nil {
-					errors <- fmt.Errorf("EOF: data content size less than format requires")
+					errors <- err
 					return
 				} else {
 					if value := parseValue(rawValue, cFormatRune, order); value != nil {
@@ -292,7 +332,11 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 	return parsedValues, errors
 }
 
-// UnpackFrom unpacks binary data from a buffer starting at a specified offset
+// UnpackFrom(format, /, buffer, offset=0)
+// Unpack from buffer starting at position offset, according to the format string format.
+// The result is an []interface{} even if it contains exactly one item.
+// The buffer’s size in bytes, starting at position offset,
+// must be at least the size required by the format, as reflected by CalcSize().
 func UnpackFrom(format string, buffer []byte, offset int) ([]interface{}, error) {
 	if offset >= len(buffer) {
 		return nil, fmt.Errorf("offset is out of range")
@@ -300,70 +344,37 @@ func UnpackFrom(format string, buffer []byte, offset int) ([]interface{}, error)
 	return Unpack(format, buffer[offset:])
 }
 
-// func Pack(format string, intf []interface{}) ([]byte, error) {
+// Struct(fmt) --> compiled struct object
+type Struct struct {
+	format string
+}
 
-// 	order := '<'
-// 	var num_str string
-// 	var builded []byte
+// bind method CalcSize for Struct instance
+func (s *Struct) CalcSize() (int, error) {
+	return CalcSize(s.format)
+}
 
-// 	if _, ok := OrderMap[rune(format[0])]; ok {
-// 		order = rune(format[0])
-// 	}
+// bind method Pack for Struct instance
+func (s *Struct) Pack(intf ...interface{}) ([]byte, error) {
+	return Pack(s.format)
+}
 
-// 	i := 0
+// bind method PackInto for Struct instance
+func (s *Struct) PackInto(buffer []byte, offset int, intf ...interface{}) ([]byte, error) {
+	return PackInto(s.format, buffer, offset)
+}
 
-// 	for _, t := range format {
+// bind method Unpack for Struct instance
+func (s *Struct) Unpack(buffer []byte) ([]interface{}, error) {
+	return Unpack(s.format, buffer)
+}
 
-// 		if unicode.IsDigit(t) {
-// 			num_str += string(t)
-// 			continue
-// 		}
+// bind method UnpackFrom for Struct instance
+func (s *Struct) UnpackFrom(buffer []byte, offset int) ([]interface{}, error) {
+	return UnpackFrom(s.format, buffer, offset)
+}
 
-// 		if unicode.IsLetter(t) {
-
-// 			if _, ok := TypesNames[rune(t)]; !ok {
-// 				return nil, fmt.Errorf("error: bad char ('%c') in struct format", t)
-// 			}
-
-// 			num, err := strconv.Atoi(num_str)
-// 			if err != nil {
-// 				num = 1
-// 			}
-// 			num_str = ""
-
-// 			if t == String {
-// 				if str, ok := intf[i].(string); ok {
-// 					data := []byte(str)[:num]
-// 					builded = append(builded, data...)
-// 					i += 1
-// 					continue
-// 				} else {
-// 					return nil, fmt.Errorf("value %v on index %d have to be a string type", intf[i], i)
-// 				}
-// 			}
-
-// 			if t == PadByte {
-// 				for i := 0; i < num; i++ {
-// 					builded = append(builded, 0x00)
-// 				}
-// 				continue
-// 			}
-
-// 			for i := 0; i < num; i++ {
-// 				if data, err := buildValue(intf[i], t); err != nil {
-// 					return nil, fmt.Errorf("value %v on index %d have to be a %c type", intf[i], i, t)
-// 				} else {
-// 					builded = append(builded, data...)
-// 					i += 1
-// 				}
-// 			}
-
-// 			fmt.Println("Step", i, builded, t)
-// 		}
-
-// 	}
-
-// 	fmt.Println(order, num_str, builded)
-
-// 	return []byte{}, nil
-// }
+// bind method IterUnpack for Struct instance
+func (s *Struct) IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error) {
+	return IterUnpack(s.format, buffer)
+}

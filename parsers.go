@@ -90,7 +90,7 @@ var CFormatStringMap = map[CFormatRune]string{
 	'c': "Char",
 	'b': "SChar",
 	'B': "UChar",
-	'?': "_Bool",
+	'?': "Bool",
 	'h': "Short",
 	'H': "UShort",
 	'i': "Int",
@@ -111,51 +111,37 @@ var CFormatStringMap = map[CFormatRune]string{
 
 var SizeMap = map[CFormatRune]int{
 	// 'x': 1,
-	'c': 1,
-	'b': 1,
-	'B': 1,
-	'?': 1,
-	'h': 2,
-	'H': 2,
-	'i': 4,
-	'I': 4,
-	'l': 4,
-	'L': 4,
-	'q': 8,
-	'Q': 8,
-	// 'n': 0,
-	// 'N': 0,
-	// 'e': 2,
-	'f': 4,
-	'd': 8,
+	'c': 1, 'b': 1, 'B': 1, '?': 1,
+	'h': 2, 'H': 2,
+	'i': 4, 'I': 4, 'l': 4, 'L': 4,
+	'q': 8, 'Q': 8,
+	// 'n': 0,	// 'N': 0,  // 'e': 2,
+	'f': 4, 'd': 8,
 	's': 1,
-	// 'p': 1,
-	// 'P': 0,
+	// 'p': 1,	// 'P': 0,
 }
 
-func getNativeOrder() Order {
+func getNativeOrder() binary.ByteOrder {
 	var nativeEndian binary.ByteOrder
 	if nativeEndian = binary.LittleEndian; nativeEndian == binary.BigEndian {
-		return BigEndian
+		return binary.LittleEndian
 	} else {
-		return LittleEndian
+		return binary.BigEndian
 	}
 }
 
-func getOrder(order rune) (Order, error) {
+func getOrder(order rune) (binary.ByteOrder, error) {
 	if ord, ok := OrderMap[order]; ok {
 		switch ord {
 		case LittleEndian:
-			return LittleEndian, nil
-		case BigEndian:
-			return BigEndian, nil
-		case NetworkOrder:
-			return BigEndian, nil
+			return binary.LittleEndian, nil
+		case BigEndian, NetworkOrder:
+			return binary.BigEndian, nil
 		default:
 			return getNativeOrder(), nil
 		}
 	}
-	return UnknownOrder, fmt.Errorf("error: bad char ('%c') in struct format", order)
+	return nil, fmt.Errorf("error: bad char ('%c') in struct format", order)
 }
 
 func parseString(buffer []byte) string {
@@ -166,12 +152,12 @@ func buildString(value string) []byte {
 	return []byte(value)
 }
 
-func parseValue(buffer []byte, cFormatRune CFormatRune, order Order) interface{} {
+func parseValue(buffer []byte, cFormatRune CFormatRune, endian binary.ByteOrder) interface{} {
 
-	var endian binary.ByteOrder = binary.BigEndian
-	if order == LittleEndian {
-		endian = binary.LittleEndian
-	}
+	// var endian binary.ByteOrder = binary.BigEndian
+	// if order == LittleEndian {
+	// 	endian = binary.LittleEndian
+	// }
 
 	switch cFormatRune {
 	case Char:
@@ -208,12 +194,7 @@ func parseValue(buffer []byte, cFormatRune CFormatRune, order Order) interface{}
 	}
 }
 
-func buildValue(value interface{}, cFormatRune CFormatRune, order Order) []byte {
-
-	var endian binary.ByteOrder = binary.LittleEndian
-	if order == BigEndian {
-		endian = binary.BigEndian
-	}
+func buildValue(value interface{}, cFormatRune CFormatRune, endian binary.ByteOrder) []byte {
 
 	buffer := new(bytes.Buffer)
 	ref_val := reflect.ValueOf(value)
