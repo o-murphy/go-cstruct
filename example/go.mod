@@ -2,4 +2,4 @@ module github.com/o-murphy/pystruct-go/example
 
 go 1.19
 
-require github.com/o-murphy/pystruct-go v0.0.1 // indirect
+require github.com/o-murphy/pystruct-go v0.0.2
