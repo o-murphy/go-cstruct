@@ -9,7 +9,6 @@ import (
 )
 
 func readValue(reader *bytes.Reader, t CFormatRune) ([]byte, error) {
-	// fmt.Printf("Parsing: %c", t)
 	value := []byte{}
 
 	for i := 0; i < SizeMap[t]; i++ {

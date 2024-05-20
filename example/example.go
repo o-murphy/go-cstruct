@@ -15,5 +15,8 @@ func main() {
 	}
 
 	// pack
+	if byteArray2, err := pystruct.Pack(`<3sf`, intf); err == nil {
+		fmt.Println(byteArray2)
+	}
 
 }
