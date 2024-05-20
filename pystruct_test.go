@@ -3,33 +3,43 @@ package pystruct_test
 import (
 	"fmt"
 	"testing"
+	"unicode"
 
 	pystruct "github.com/o-murphy/pystruct-go"
 )
 
 func TestCalcSize(t *testing.T) {
+
+	v, ok := pystruct.CFormatMap['f']
+
+	if !ok && !unicode.IsLetter('f') {
+		t.Errorf("Is format, ok %c, %v", v, ok)
+	}
+
+	v, ok = pystruct.CFormatMap['-']
+
+	if ok && unicode.IsLetter('-') {
+		t.Errorf("Is not format, ok %c, %v", v, ok)
+	}
+
 	size, err := pystruct.CalcSize(`<3sf`)
 	if err != nil {
 		t.Errorf("Error occured: %s\n", err)
 	} else {
-		fmt.Printf("Calculated size: %d\n", size)
-
 		if size != 7 {
 			t.Errorf("Expected: 7, got %d\n", size)
 		}
-
 	}
+
+	fmt.Println("PASS: TestCalcSize")
 }
 
 func TestUnpack(t *testing.T) {
 	byteArray := []byte{97, 98, 99, 100, 101, 102, 103}
 
 	intf, err := pystruct.Unpack(`<3sf`, byteArray)
-	if err == nil {
-		fmt.Println(intf...)
-	} else {
-		fmt.Println(err)
-		t.Errorf("Unbound error")
+	if err != nil {
+		t.Error("Unbound error:", err)
 	}
 
 	if len(intf) != 2 {
@@ -41,11 +51,11 @@ func TestUnpack(t *testing.T) {
 	}
 
 	// Check the type of the second element in the interface slice
-	if f, ok := intf[1].(float32); ok {
-		fmt.Printf("Second element is a float32: %f\n", f)
-	} else {
-		t.Errorf("Second element is not a float32")
+	if f, ok := intf[1].(float32); !ok {
+		t.Errorf("Second element is not a float32: %f\n", f)
 	}
+
+	fmt.Println("PASS: TestUnpack")
 }
 
 func TestIterUnpack(t *testing.T) {
@@ -65,12 +75,13 @@ func TestIterUnpack(t *testing.T) {
 
 		}
 		i += 1
-		fmt.Println(value)
 	}
 
 	for err := range errs {
-		fmt.Println("Error:", err)
+		t.Error("Unbound error:", err)
 	}
+
+	fmt.Println("PASS: TestIterUnpack")
 }
 
 func TestUnpackFrom(t *testing.T) {
@@ -78,11 +89,9 @@ func TestUnpackFrom(t *testing.T) {
 	byteArray := []byte{0, 0, 0, 97, 98, 99, 100, 101, 102, 103}
 
 	intf, err := pystruct.UnpackFrom(`<3sf`, byteArray, 3)
-	if err == nil {
-		fmt.Println(intf...)
-	} else {
-		fmt.Println(err)
-		t.Errorf("Unbound error")
+
+	if err != nil {
+		t.Error("Unbound error:", err)
 	}
 
 	if len(intf) != 2 {
@@ -93,10 +102,9 @@ func TestUnpackFrom(t *testing.T) {
 		t.Errorf("Wrong parsed value 0")
 	}
 
-	// Check the type of the second element in the interface slice
-	if f, ok := intf[1].(float32); ok {
-		fmt.Printf("Second element is a float32: %f\n", f)
-	} else {
-		t.Errorf("Second element is not a float32")
+	if f, ok := intf[1].(float32); !ok {
+		t.Errorf("Second element is not a float32: %f\n", f)
 	}
+
+	fmt.Println("PASS: TestUnpackFrom")
 }

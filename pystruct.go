@@ -8,13 +8,6 @@ import (
 	"unicode"
 )
 
-var (
-	// DefaultTagName is the default tag name for struct fields which provides
-	// a more granular to tweak certain structs. Lookup the necessary functions
-	// for more info.
-	DefaultTagName = "pystruct" // struct's field default tag name
-)
-
 func readValue(reader *bytes.Reader, t CFormatRune) ([]byte, error) {
 	// fmt.Printf("Parsing: %c", t)
 	value := []byte{}
@@ -33,12 +26,6 @@ func CalcSize(format string) (int, error) {
 	num := 0
 	size := 0
 
-	order, err := getOrder(rune(format[0]))
-	if err != nil {
-		return -1, err
-	}
-	fmt.Printf("Order: %s\n", OrderStringMap[order])
-
 	for _, sRune := range format {
 		cFormatRune := CFormatRune(sRune)
 
@@ -56,10 +43,8 @@ func CalcSize(format string) (int, error) {
 			num = 1
 		}
 
-		if unicode.IsLetter(sRune) {
-			if _, ok := CFormatMap[cFormatRune]; !ok {
-				return -1, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
-			}
+		if _, ok := CFormatMap[cFormatRune]; !ok && unicode.IsLetter(sRune) {
+			return -1, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 		}
 
 		size += num * SizeMap[cFormatRune]
@@ -68,7 +53,7 @@ func CalcSize(format string) (int, error) {
 	return size, nil
 }
 
-func checkSize(format string, buffer []byte) error {
+func checkFormat(format string, buffer []byte) error {
 	size, err := CalcSize(format)
 	switch {
 	case err != nil:
@@ -82,7 +67,7 @@ func checkSize(format string, buffer []byte) error {
 
 func Unpack(format string, buffer []byte) ([]interface{}, error) {
 
-	if err := checkSize(format, buffer); err != nil {
+	if err := checkFormat(format, buffer); err != nil {
 		return nil, err
 	}
 
@@ -93,8 +78,6 @@ func Unpack(format string, buffer []byte) ([]interface{}, error) {
 	order, err := getOrder(rune(format[0]))
 	if err != nil {
 		return nil, err
-	} else {
-		format = format[1:]
 	}
 
 	for _, sRune := range format {
@@ -110,7 +93,7 @@ func Unpack(format string, buffer []byte) ([]interface{}, error) {
 			continue
 		}
 
-		if _, ok := CFormatMap[cFormatRune]; !ok {
+		if _, ok := CFormatMap[cFormatRune]; !ok && unicode.IsLetter(sRune) {
 			return nil, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 		}
 
@@ -159,7 +142,7 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 		defer close(parsedValues)
 		defer close(errors)
 
-		if err := checkSize(format, buffer); err != nil {
+		if err := checkFormat(format, buffer); err != nil {
 			errors <- err
 			return
 		}
@@ -171,8 +154,6 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 		if err != nil {
 			errors <- err
 			return
-		} else {
-			format = format[1:]
 		}
 
 		for _, sRune := range format {
@@ -188,7 +169,7 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 				continue
 			}
 
-			if _, ok := CFormatMap[cFormatRune]; !ok {
+			if _, ok := CFormatMap[cFormatRune]; !ok && unicode.IsLetter(sRune) {
 				errors <- fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 				return
 			}
