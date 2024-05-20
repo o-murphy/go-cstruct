@@ -26,6 +26,10 @@ func CalcSize(format string) (int, error) {
 	num := 0
 	size := 0
 
+	if _, ok := OrderMap[rune(format[0])]; ok {
+		format = format[1:]
+	}
+
 	for _, sRune := range format {
 		cFormatRune := CFormatRune(sRune)
 
@@ -43,7 +47,7 @@ func CalcSize(format string) (int, error) {
 			num = 1
 		}
 
-		if _, ok := CFormatMap[cFormatRune]; !ok && unicode.IsLetter(sRune) {
+		if _, ok := CFormatMap[cFormatRune]; !ok && !unicode.IsLetter(sRune) {
 			return -1, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 		}
 
@@ -53,31 +57,34 @@ func CalcSize(format string) (int, error) {
 	return size, nil
 }
 
-func checkFormat(format string, buffer []byte) error {
-	size, err := CalcSize(format)
+func checkFormatAndSize(format string, expected_size int) error {
+	fmt_size, err := CalcSize(format)
 	switch {
 	case err != nil:
 		return err
-	case size < len(buffer), size > len(buffer):
-		return fmt.Errorf("struct.error: unpack requires a buffer of %d bytes", size)
+	case fmt_size < expected_size, expected_size > expected_size:
+		return fmt.Errorf("struct.error: unpack requires a buffer of %d bytes", fmt_size)
 	default:
 		return nil
 	}
 }
 
-func Unpack(format string, buffer []byte) ([]interface{}, error) {
-
-	if err := checkFormat(format, buffer); err != nil {
+func Pack(format string, intf []interface{}) ([]byte, error) {
+	if err := checkFormatAndSize(format, len(intf)); err != nil {
 		return nil, err
 	}
 
 	num := 0
-	var parsedValues []interface{}
-	reader := bytes.NewReader(buffer)
+	index := 0
+	var buffer []byte
 
 	order, err := getOrder(rune(format[0]))
 	if err != nil {
 		return nil, err
+	}
+
+	if _, ok := OrderMap[rune(format[0])]; ok {
+		format = format[1:]
 	}
 
 	for _, sRune := range format {
@@ -93,7 +100,79 @@ func Unpack(format string, buffer []byte) ([]interface{}, error) {
 			continue
 		}
 
-		if _, ok := CFormatMap[cFormatRune]; !ok && unicode.IsLetter(sRune) {
+		if _, ok := CFormatMap[cFormatRune]; !ok && !unicode.IsLetter(sRune) {
+			return nil, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
+		}
+
+		if num == 0 {
+			num = 1
+		}
+
+		if cFormatRune == String {
+
+			value := intf[index]
+
+			switch v := value.(type) {
+			case string:
+				buffer = append(buffer, buildString(v)...)
+			default:
+				return nil, fmt.Errorf("struct.error: argument for 's' must be a bytes object")
+			}
+			num = 0
+			index += 1
+			continue
+		}
+
+		for i := 0; i < num; i++ {
+
+			if data := buildValue(intf[index], cFormatRune, order); data != nil {
+				buffer = append(buffer, data...)
+				index += 1
+			} else {
+				return nil, fmt.Errorf("struct.error: required argument is not an %s", CFormatStringMap[cFormatRune])
+			}
+
+		}
+		num = 0
+
+	}
+
+	return buffer, nil
+}
+
+func Unpack(format string, buffer []byte) ([]interface{}, error) {
+
+	if err := checkFormatAndSize(format, len(buffer)); err != nil {
+		return nil, err
+	}
+
+	num := 0
+	var parsedValues []interface{}
+	reader := bytes.NewReader(buffer)
+
+	order, err := getOrder(rune(format[0]))
+	if err != nil {
+		return nil, err
+	}
+
+	if _, ok := OrderMap[rune(format[0])]; ok {
+		format = format[1:]
+	}
+
+	for _, sRune := range format {
+		cFormatRune := CFormatRune(sRune)
+
+		if add, err := strconv.Atoi(string(sRune)); err == nil {
+			switch {
+			case num == 0:
+				num += add
+			default:
+				num += add * 10
+			}
+			continue
+		}
+
+		if _, ok := CFormatMap[cFormatRune]; !ok && !unicode.IsLetter(sRune) {
 			return nil, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 		}
 
@@ -107,7 +186,7 @@ func Unpack(format string, buffer []byte) ([]interface{}, error) {
 				if rawValue, err := readValue(reader, cFormatRune); err != nil {
 					return nil, err
 				} else {
-					value += string(rawValue)
+					value += parseString(rawValue)
 				}
 			}
 			parsedValues = append(parsedValues, value)
@@ -142,7 +221,7 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 		defer close(parsedValues)
 		defer close(errors)
 
-		if err := checkFormat(format, buffer); err != nil {
+		if err := checkFormatAndSize(format, len(buffer)); err != nil {
 			errors <- err
 			return
 		}
@@ -154,6 +233,10 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 		if err != nil {
 			errors <- err
 			return
+		}
+
+		if _, ok := OrderMap[rune(format[0])]; ok {
+			format = format[1:]
 		}
 
 		for _, sRune := range format {
@@ -169,7 +252,7 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 				continue
 			}
 
-			if _, ok := CFormatMap[cFormatRune]; !ok && unicode.IsLetter(sRune) {
+			if _, ok := CFormatMap[cFormatRune]; !ok && !unicode.IsLetter(sRune) {
 				errors <- fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 				return
 			}

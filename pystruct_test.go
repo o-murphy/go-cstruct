@@ -108,3 +108,14 @@ func TestUnpackFrom(t *testing.T) {
 
 	fmt.Println("PASS: TestUnpackFrom")
 }
+
+func TestPack(t *testing.T) {
+	intf := []interface{}{"abc", 1.01}
+	byteArray, err := pystruct.Pack("<3sf", intf)
+
+	if err != nil {
+		t.Error("Unbound error:", err)
+	} else {
+		fmt.Println("byteArray:", byteArray)
+	}
+}
