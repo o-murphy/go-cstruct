@@ -93,10 +93,10 @@ func main() {
 |>          |big-endian            |standard|none      |
 |!          |network (= big-endian)|standard|none      |
 
-> ![TIP] 
+> [!TIP] 
 > If the first character is not one of these, '@' is assumed.
 
-> ![NOTE]
+> [!NOTE]
 > Note The number 1023 (0x3ff in hexadecimal) has the following byte representations:
 > ```
 > 03 ff in big-endian (>)
