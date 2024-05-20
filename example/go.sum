@@ -4,3 +4,5 @@ github.com/o-murphy/pystruct-go v0.0.0-20240520121308-857fdd44f473 h1:bdZlQ/+VFX
 github.com/o-murphy/pystruct-go v0.0.0-20240520121308-857fdd44f473/go.mod h1:RyTA6Q3UBfnbGWGUYwmQeJ2coH1PWRMB0e98BacObzw=
 github.com/o-murphy/pystruct-go v0.0.0-20240520143156-f6a4b017a0c8 h1:kyYwlsnR10xRn5KQcFfnmP/nmzeBtqUgDKhyLiijZMU=
 github.com/o-murphy/pystruct-go v0.0.0-20240520143156-f6a4b017a0c8/go.mod h1:RyTA6Q3UBfnbGWGUYwmQeJ2coH1PWRMB0e98BacObzw=
+github.com/o-murphy/pystruct-go v0.0.0-20240520143719-d09634f36807 h1:xv0BYnlQM11F9TQq78aYDB9+upl0hZe4+JN+07aOvmM=
+github.com/o-murphy/pystruct-go v0.0.0-20240520143719-d09634f36807/go.mod h1:RyTA6Q3UBfnbGWGUYwmQeJ2coH1PWRMB0e98BacObzw=
