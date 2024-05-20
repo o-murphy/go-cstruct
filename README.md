@@ -7,7 +7,8 @@
 ``` bash
 > go get github.com/o-murphy/pystruct-go
 ```
- > [!TIP]: Tested only with small values
+ > [!TIP]
+ > Tested only with small values
 
 
 ### Usage
