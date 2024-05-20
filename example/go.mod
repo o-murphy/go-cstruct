@@ -1,4 +1,4 @@
-module example
+module github.com/o-murphy/pystruct-go/example
 
 go 1.19
 
