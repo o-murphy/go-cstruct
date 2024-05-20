@@ -18,10 +18,11 @@ var (
 func readValue(reader *bytes.Reader, t CFormatRune) ([]byte, error) {
 	// fmt.Printf("Parsing: %c", t)
 	value := []byte{}
+
 	for i := 0; i < SizeMap[t]; i++ {
 		b, err := reader.ReadByte()
 		if err == io.EOF {
-			return nil, err
+			return nil, fmt.Errorf("EOF: data content size less than format requires")
 		}
 		value = append(value, b)
 	}
@@ -29,7 +30,7 @@ func readValue(reader *bytes.Reader, t CFormatRune) ([]byte, error) {
 }
 
 func CalcSize(format string) (int, error) {
-	numStr := ""
+	num := 0
 	size := 0
 
 	order, err := getOrder(rune(format[0]))
@@ -41,92 +42,116 @@ func CalcSize(format string) (int, error) {
 	for _, sRune := range format {
 		cFormatRune := CFormatRune(sRune)
 
-		if unicode.IsDigit(sRune) {
-			numStr += string(cFormatRune)
+		if add, err := strconv.Atoi(string(sRune)); err == nil {
+			switch {
+			case num == 0:
+				num += add
+			default:
+				num += add * 10
+			}
 			continue
 		}
 
-		num, err := strconv.Atoi(numStr)
-		if err != nil {
+		if num == 0 {
 			num = 1
 		}
-		numStr = ""
 
 		if unicode.IsLetter(sRune) {
-
 			if _, ok := CFormatMap[cFormatRune]; !ok {
-				return -1, fmt.Errorf("error: bad char ('%c') in struct format", cFormatRune)
+				return -1, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 			}
-
 		}
 
 		size += num * SizeMap[cFormatRune]
+		num = 0
 	}
 	return size, nil
 }
 
+func checkSize(format string, buffer []byte) error {
+	size, err := CalcSize(format)
+	switch {
+	case err != nil:
+		return err
+	case size < len(buffer), size > len(buffer):
+		return fmt.Errorf("struct.error: unpack requires a buffer of %d bytes", size)
+	default:
+		return nil
+	}
+}
+
 func Unpack(format string, buffer []byte) ([]interface{}, error) {
 
-	var numStr string
+	if err := checkSize(format, buffer); err != nil {
+		return nil, err
+	}
+
+	num := 0
 	var parsedValues []interface{}
 	reader := bytes.NewReader(buffer)
 
 	order, err := getOrder(rune(format[0]))
 	if err != nil {
 		return nil, err
+	} else {
+		format = format[1:]
 	}
 
 	for _, sRune := range format {
 		cFormatRune := CFormatRune(sRune)
 
-		if unicode.IsDigit(sRune) {
-			numStr += string(cFormatRune)
+		if add, err := strconv.Atoi(string(sRune)); err == nil {
+			switch {
+			case num == 0:
+				num += add
+			default:
+				num += add * 10
+			}
 			continue
 		}
 
-		if unicode.IsLetter(sRune) {
+		if _, ok := CFormatMap[cFormatRune]; !ok {
+			return nil, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
+		}
 
-			if _, ok := CFormatMap[cFormatRune]; !ok {
-				return nil, fmt.Errorf("error: bad char ('%c') in struct format", cFormatRune)
-			}
+		if num == 0 {
+			num = 1
+		}
 
-			num, err := strconv.Atoi(numStr)
-			if err != nil {
-				num = 1
-			}
-			numStr = ""
-
-			if cFormatRune == String {
-				value := ""
-				for i := 0; i < num; i++ {
-					if rawValue, err := readValue(reader, cFormatRune); err != nil {
-						return nil, fmt.Errorf("EOF: data content size less than format requires")
-					} else {
-						value += string(rawValue)
-					}
-				}
-				parsedValues = append(parsedValues, value)
-				continue
-			}
-
+		if cFormatRune == String {
+			value := ""
 			for i := 0; i < num; i++ {
-
 				if rawValue, err := readValue(reader, cFormatRune); err != nil {
-					return nil, fmt.Errorf("EOF: data content size less than format requires")
+					return nil, err
 				} else {
-					if value := parseValue(rawValue, cFormatRune, order); value != nil {
-						parsedValues = append(parsedValues, value)
-					}
+					value += string(rawValue)
+				}
+			}
+			parsedValues = append(parsedValues, value)
+			num = 0
+			continue
+		}
+
+		for i := 0; i < num; i++ {
+
+			if rawValue, err := readValue(reader, cFormatRune); err != nil {
+				return nil, err
+			} else {
+				if value := parseValue(rawValue, cFormatRune, order); value != nil {
+					parsedValues = append(parsedValues, value)
 				}
 			}
 		}
+		num = 0
+
 	}
 	return parsedValues, nil
 
 }
 
 // Iterator function to unpack the data
-func IterUnpack(format string, buffer *[]byte) (<-chan interface{}, <-chan error) {
+func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error) {
+
 	parsedValues := make(chan interface{})
 	errors := make(chan error)
 
@@ -134,61 +159,70 @@ func IterUnpack(format string, buffer *[]byte) (<-chan interface{}, <-chan error
 		defer close(parsedValues)
 		defer close(errors)
 
-		var numStr string
-		reader := bytes.NewReader(*buffer)
+		if err := checkSize(format, buffer); err != nil {
+			errors <- err
+			return
+		}
+
+		num := 0
+		reader := bytes.NewReader(buffer)
 
 		order, err := getOrder(rune(format[0]))
 		if err != nil {
 			errors <- err
 			return
+		} else {
+			format = format[1:]
 		}
 
 		for _, sRune := range format {
 			cFormatRune := CFormatRune(sRune)
 
-			if unicode.IsDigit(sRune) {
-				numStr += string(cFormatRune)
+			if add, err := strconv.Atoi(string(sRune)); err == nil {
+				switch {
+				case num == 0:
+					num += add
+				default:
+					num += add * 10
+				}
 				continue
 			}
 
-			if unicode.IsLetter(sRune) {
+			if _, ok := CFormatMap[cFormatRune]; !ok {
+				errors <- fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
+				return
+			}
 
-				if _, ok := CFormatMap[cFormatRune]; !ok {
-					errors <- fmt.Errorf("error: bad char ('%c') in struct format", cFormatRune)
-					return
-				}
+			if num == 0 {
+				num = 1
+			}
 
-				num, err := strconv.Atoi(numStr)
-				if err != nil {
-					num = 1
-				}
-				numStr = ""
-
-				if cFormatRune == String {
-					value := ""
-					for i := 0; i < num; i++ {
-						if rawValue, err := readValue(reader, cFormatRune); err != nil {
-							errors <- fmt.Errorf("EOF: data content size less than format requires")
-							return
-						} else {
-							value += string(rawValue)
-						}
-					}
-					parsedValues <- value
-					continue
-				}
-
+			if cFormatRune == String {
+				value := ""
 				for i := 0; i < num; i++ {
 					if rawValue, err := readValue(reader, cFormatRune); err != nil {
 						errors <- fmt.Errorf("EOF: data content size less than format requires")
 						return
 					} else {
-						if value := parseValue(rawValue, cFormatRune, order); value != nil {
-							parsedValues <- value
-						}
+						value += string(rawValue)
+					}
+				}
+				parsedValues <- value
+				num = 0
+				continue
+			}
+
+			for i := 0; i < num; i++ {
+				if rawValue, err := readValue(reader, cFormatRune); err != nil {
+					errors <- fmt.Errorf("EOF: data content size less than format requires")
+					return
+				} else {
+					if value := parseValue(rawValue, cFormatRune, order); value != nil {
+						parsedValues <- value
 					}
 				}
 			}
+			num = 0
 		}
 	}()
 

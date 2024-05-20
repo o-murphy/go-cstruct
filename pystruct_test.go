@@ -52,7 +52,7 @@ func TestIterUnpack(t *testing.T) {
 	format := `<3sf`
 	byteArray := []byte{97, 98, 99, 100, 101, 102, 103}
 
-	iterator, errs := pystruct.IterUnpack(format, &byteArray)
+	iterator, errs := pystruct.IterUnpack(format, byteArray)
 
 	i := 0
 	for value := range iterator {
