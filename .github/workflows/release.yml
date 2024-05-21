@@ -1,9 +1,13 @@
 name: Release Workflow
 
-on:
+on: 
   release:
-    types: [published]
+    types: [published, edited]
+
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
