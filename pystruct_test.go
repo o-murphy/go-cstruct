@@ -8,13 +8,13 @@ import (
 
 func TestCalcSize_old(t *testing.T) {
 
-	v, ok := CFormatMap['f']
+	v, ok := cFormatMap['f']
 
 	if !ok && !unicode.IsLetter('f') {
 		t.Errorf("Is format, ok %c, %v", v, ok)
 	}
 
-	v, ok = CFormatMap['-']
+	v, ok = cFormatMap['-']
 
 	if ok && unicode.IsLetter('-') {
 		t.Errorf("Is not format, ok %c, %v", v, ok)

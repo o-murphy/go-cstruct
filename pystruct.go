@@ -31,15 +31,15 @@ func init() {
 
 type formatGroup struct {
 	number    int
-	format    CFormatRune
+	format    cFormatRune
 	alignment int // cached alignment value
 }
 
-func newFormatGroup(number int, format CFormatRune) formatGroup {
+func newFormatGroup(number int, format cFormatRune) formatGroup {
 	return formatGroup{
 		number:    number,
 		format:    format,
-		alignment: FormatAlignmentMap[format],
+		alignment: formatAlignmentMap[format],
 	}
 }
 
@@ -73,7 +73,7 @@ func parseFormat(format string) (binary.ByteOrder, []formatGroup, error) {
 		var number int
 
 		numberStr := match[1]
-		formatRune := CFormatRune(rune(match[2][0]))
+		formatRune := cFormatRune(rune(match[2][0]))
 
 		if numberStr == "" {
 			number = 1
@@ -94,7 +94,7 @@ func parseFormatAndCalcSize(format string) (binary.ByteOrder, []formatGroup, int
 	items_num := 0
 	for _, group := range groups {
 		buffer_size += group.number * group.alignment
-		if group.format == String {
+		if group.format == tString {
 			items_num++
 		} else {
 			items_num += group.number
@@ -145,7 +145,7 @@ func (s *pyStruct) Pack(intf ...interface{}) ([]byte, error) {
 	}
 
 	for i, group := range s.groups {
-		if group.format == String {
+		if group.format == tString {
 			switch value := intf[i].(type) {
 			case string:
 				buffer = append(buffer, buildString(value)...)
@@ -157,7 +157,7 @@ func (s *pyStruct) Pack(intf ...interface{}) ([]byte, error) {
 				if data := buildValue(intf[i], group.format, s.order); data != nil {
 					buffer = append(buffer, data...)
 				} else {
-					return nil, fmt.Errorf("struct.error: required argument is not an %s", CFormatStringMap[group.format])
+					return nil, fmt.Errorf("struct.error: required argument is not an %s", cFormatStringMap[group.format])
 				}
 			}
 		}
@@ -204,7 +204,7 @@ func (s *pyStruct) UnpackFrom(buffer []byte, offset int) ([]interface{}, error) 
 	}
 
 	for _, group := range s.groups {
-		if group.format == String {
+		if group.format == tString {
 			bytesShift := group.alignment * group.number
 			value := parseString(buffer[offset : offset+bytesShift])
 			offset += bytesShift
@@ -248,7 +248,7 @@ func (s *pyStruct) IterUnpack(buffer []byte) (<-chan interface{}, <-chan error) 
 		}
 
 		for _, group := range s.groups {
-			if group.format == String {
+			if group.format == tString {
 				bytesShift := group.alignment * group.number
 				value := parseString(buffer[offset : offset+bytesShift])
 				offset += bytesShift

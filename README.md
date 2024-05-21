@@ -28,7 +28,7 @@
 		* [func UnpackFrom](#func-unpackfrom)
 		* [func IterUnpack](#func-iterunpack)
 	* [Types](#types)
-		* [Type Struct](#type-struct-1)
+		* [Type pyStruct](#type-struct-1)
 			* [func CalcSize](#func-calcsize-1)
 			* [func Pack](#func-pack-1)
 			* [func PackInto](#func-packinto-1)
@@ -251,49 +251,55 @@ The buffer’s size in bytes must be a multiple of the size required by the form
 > ```
 
 ### Types
-#### type Struct
+#### type pyStruct
 ```go
-type Struct struct {
+type pyStruct struct {
 	format string
 }
 ```
-Struct(fmt) --> compiled struct object
+pyStruct(fmt) --> compiled pyStruct object
+
+##### func NewStruct
+```go
+NewStruct(format string) (pyStruct, error)
+```
+NewStruct(fmt) --> compiled pyStruct object
 Methods bellow this just binds for same named functions
 
 ##### func CalcSize
 ([⬆️CalcSize](#func-pack))
 ```go
-func (s *Struct) CalcSize() (int, error)
+func (s *pyStruct) CalcSize() (int, error)
 ```
 
 ##### func Pack
 ([⬆️Pack](#func-pack))
 ```go
-func (s *Struct) Pack(intf ...interface{}) ([]byte, error)
+func (s *pyStruct) Pack(intf ...interface{}) ([]byte, error)
 ```
 
 ##### func PackInto
 ([⬆️PackInto](#func-packinto))
 ```go
-func (s *Struct) PackInto(buffer []byte, offset int, intf ...interface{}) ([]byte, error) 
+func (s *pyStruct) PackInto(buffer []byte, offset int, intf ...interface{}) ([]byte, error) 
 ```
 
 ##### func Unpack
 ([⬆️Unpack](#func-unpack))
 ```go
-func (s *Struct) Unpack(buffer []byte) ([]interface{}, error)
+func (s *pyStruct) Unpack(buffer []byte) ([]interface{}, error)
 ```
 
 ##### func UnpackFrom
 ([⬆️UnpackFrom](#func-unpackfrom))
 ```go
-func (s *Struct) UnpackFrom(buffer []byte, offset int) ([]interface{}, error) {
+func (s *pyStruct) UnpackFrom(buffer []byte, offset int) ([]interface{}, error) 
 ```
 
 ##### func IterUnpack
 ([⬆️IterUnpack](#func-iterunpack))
 ```go
-func (s *Struct) IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
+func (s *pyStruct) IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 ```
 
 ### Not yet implemented
