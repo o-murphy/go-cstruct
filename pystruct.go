@@ -104,7 +104,9 @@ func parseFormatAndCalcSize(format string) (binary.ByteOrder, []formatGroup, int
 }
 
 // NewStruct(fmt) --> compiled PyStruct object
+// Don't create directly, use NewStruct(fmt) instead
 type PyStruct struct {
+	// Don't create directly, use NewStruct(fmt) instead
 	format    string
 	order     binary.ByteOrder
 	size      int
@@ -321,7 +323,7 @@ func Unpack(format string, buffer []byte) ([]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.UnpackFrom(buffer, 0)
+	return s.Unpack(buffer)
 }
 
 // Iteratively unpack from the buffer buffer according to the format string format.

@@ -223,6 +223,39 @@ func TestPackInto(t *testing.T) {
 }
 
 func TestUnpack(t *testing.T) {
+	byteArray := []byte{97, 98, 99, 100, 101, 102, 103, 97, 98, 99, 100, 101, 102, 103, 102, 103, 100, 101, 102, 103}
+	intf, err := Unpack("<10s 2b d", byteArray)
+
+	if err != nil {
+		t.Error("Unbound error:", err)
+	}
+
+	if len(intf) != 4 {
+		t.Errorf("expected 2 elements in the interface slice, got %d", len(intf))
+	}
+
+	if _, ok := intf[0].(string); !ok {
+		t.Errorf("wrong intf[0] type, expected: string, got %T", intf[0])
+	}
+
+	if intf[0] != "abcdefgabc" {
+		t.Errorf("wrong intf[0] value, expected: 'abcdefgabc', got %s", intf[0])
+	}
+
+	if _, ok := intf[1].(int8); !ok {
+		t.Errorf("wrong intf[1] type, expected: int, got %T", intf[1])
+	}
+
+	if intf[1] != int8(100) {
+		t.Errorf("wrong intf[1] value, expected: 100, got %d", intf[1])
+	}
+
+	if _, ok := intf[3].(float64); !ok {
+		t.Errorf("wrong intf[3] type, expected: float64, got %T", intf[3])
+	}
+}
+
+func TestUnpackFrom(t *testing.T) {
 	byteArray := []byte{0, 0, 97, 98, 99, 100, 101, 102, 103, 97, 98, 99, 100, 101, 102, 103, 102, 103, 100, 101, 102, 103}
 	intf, err := UnpackFrom("<10s 2b d", byteArray, 2)
 

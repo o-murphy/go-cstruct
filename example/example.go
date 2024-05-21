@@ -39,7 +39,7 @@ func main() {
 		if err != nil {
 			fmt.Println(intf...)
 		} else {
-			intf, err := s.Unpack(``, byteArray)
+			intf, err := s.Unpack(byteArray)
 			if err != nil {
 				fmt.Println(intf...)
 			}
