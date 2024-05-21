@@ -43,7 +43,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21.x' # Change this to the Go version you are using
+          go-version: '1.19' # Change this to the Go version you are using
 
       - name: Get release tag version
         run: |
