@@ -10,7 +10,7 @@ import (
 func readValue(reader *bytes.Reader, t CFormatRune) ([]byte, error) {
 	value := []byte{}
 
-	for i := 0; i < SizeMap[t]; i++ {
+	for i := 0; i < alignmentMap[t]; i++ {
 		b, err := reader.ReadByte()
 		if err == io.EOF {
 			return nil, fmt.Errorf("EOF: data content size less than format requires")
@@ -72,7 +72,7 @@ func CalcSize(format string) (int, error) {
 			return -1, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 		}
 
-		size += num * SizeMap[cFormatRune]
+		size += num * alignmentMap[cFormatRune]
 		num = 0
 	}
 	return size, nil

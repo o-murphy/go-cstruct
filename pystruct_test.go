@@ -3,8 +3,6 @@ package pystruct_test
 import (
 	"bytes"
 	"fmt"
-	"regexp"
-	"strconv"
 	"testing"
 	"unicode"
 
@@ -179,66 +177,31 @@ func TestWrongOrder(t *testing.T) {
 	fmt.Println("PASS: TestWrongOrder")
 }
 
+// The new experimental methods to parse struct bellow
+
 func TestRegexp(t *testing.T) {
-	// Define the regex pattern with capture groups for prefix and groups
-	pattern := `^([@<>=!])?((\d*[cbBhHiIqQlLfds])+)$`
-
-	// Compile the regular expression
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		fmt.Println("Error compiling regex:", err)
-		return
-	}
-
-	// Test string
-	testString := "@3s2bd"
-
-	// Find the entire match with submatches
-	matches := re.FindStringSubmatch(testString)
-	if len(matches) == 0 {
-		fmt.Println("No matches found")
-		return
-	}
-
-	// Print the entire match
-	fmt.Println("Entire match:", matches[0])
-
-	// Extract and print the prefix if present
-	prefix := matches[1]
-	if prefix == "" {
-		fmt.Println("Prefix: (none)")
-	} else {
-		fmt.Println("Prefix:", prefix)
-	}
-
-	// Extract the groups
-	groups := matches[2]
-
-	// Define the regex for individual groups with separate capture for number and char
-	groupPattern := `(\d*)([cbBhHiIqQlLfds])`
-	groupRe, err := regexp.Compile(groupPattern)
-	if err != nil {
-		fmt.Println("Error compiling group regex:", err)
-		return
-	}
-
-	// Find all individual groups
-	individualMatches := groupRe.FindAllStringSubmatch(groups, -1)
-
-	// Print each group with parsed number and char
-	for _, match := range individualMatches {
-		numberStr := match[1]
-		char := match[2]
-		var number int
-		if numberStr == "" {
-			number = 1
-		} else {
-			number, err = strconv.Atoi(numberStr)
-			if err != nil {
-				fmt.Println("Error converting number:", err)
-				continue
-			}
+	order, groups, err := pystruct.ParseFormat("<10s2bd")
+	if err == nil {
+		fmt.Println("Order:", order)
+		for i, group := range groups {
+			fmt.Printf(
+				"Group %d:\tnum=%d\tfmt=%c\talign=%dbyte(s)\n",
+				i, group.Number, group.Format, group.Alignment(),
+			)
 		}
-		fmt.Printf("Group: %s, Number: %d, Char: %s\n", match[0], number, char)
+	} else {
+		t.Error("Err:", err)
 	}
+}
+
+func TestCalcFormatSize(t *testing.T) {
+	format := "<10s2bd"
+	expectedSize := 20
+	size, err := pystruct.CalcFormatSize("<10s2bd")
+	if size < 0 {
+		t.Error("Error:", err)
+	} else if size != expectedSize {
+		t.Errorf("Size: Expected: %d\nActual: %d\n", expectedSize, size)
+	}
+	fmt.Printf("Size of format `%s` is %d\n", format, size)
 }

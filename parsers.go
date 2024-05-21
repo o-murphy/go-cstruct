@@ -109,7 +109,7 @@ var CFormatStringMap = map[CFormatRune]string{
 	// 'P': "VoidP",
 }
 
-var SizeMap = map[CFormatRune]int{
+var alignmentMap = map[CFormatRune]int{
 	// 'x': 1,
 	'c': 1, 'b': 1, 'B': 1, '?': 1,
 	'h': 2, 'H': 2,
