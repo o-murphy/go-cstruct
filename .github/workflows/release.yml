@@ -1,0 +1,41 @@
+name: Release Workflow
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.19' # Change this to the Go version you are using
+
+      - name: Run tests
+        run: go test ./...
+
+  list:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'release' && needs.test.result == 'success'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.16' # Change this to the Go version you are using
+
+      - name: Get release tag version
+        run: |
+          echo "Release tag: ${{ github.ref_name }}"
+          GOPROXY=proxy.golang.org go list -m github.com/o-murphy/pystruct-go@${{ github.ref_name }}
