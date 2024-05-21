@@ -28,7 +28,7 @@
 		* [func UnpackFrom](#func-unpackfrom)
 		* [func IterUnpack](#func-iterunpack)
 	* [Types](#types)
-		* [Type pyStruct](#type-struct-1)
+		* [Type PyStruct](#type-struct-1)
 			* [func CalcSize](#func-calcsize-1)
 			* [func Pack](#func-pack-1)
 			* [func PackInto](#func-packinto-1)
@@ -65,7 +65,7 @@ func main() {
 	}
 
 	// pack
-	byteArray2, err := pystruct.Pack(`<3sf`, intf)
+	byteArray2, err := pystruct.Pack(`<3sf`, intf...)
 	if err == nil {
 		fmt.Println(byteArray2)
 	}
@@ -76,7 +76,7 @@ func main() {
 
 	// or use struct
 	s := pystruct.NewStruct(`<3sf`)
-	byteArray, err := s.Pack(`<3sf`, intf)
+	byteArray, err := s.Pack(intf...)
 	intf, err := s.Unpack(byteArray)
 
 }
@@ -251,55 +251,55 @@ The buffer’s size in bytes must be a multiple of the size required by the form
 > ```
 
 ### Types
-#### type pyStruct
+#### type PyStruct
 ```go
-type pyStruct struct {
+type PyStruct struct {
 	format string
 }
 ```
-pyStruct(fmt) --> compiled pyStruct object
+PyStruct(fmt) --> compiled PyStruct object
 
 ##### func NewStruct
 ```go
-NewStruct(format string) (pyStruct, error)
+NewStruct(format string) (PyStruct, error)
 ```
-NewStruct(fmt) --> compiled pyStruct object
+NewStruct(fmt) --> compiled PyStruct object
 Methods bellow this just binds for same named functions
 
 ##### func CalcSize
 ([⬆️CalcSize](#func-pack))
 ```go
-func (s *pyStruct) CalcSize() (int, error)
+func (s *PyStruct) CalcSize() (int, error)
 ```
 
 ##### func Pack
 ([⬆️Pack](#func-pack))
 ```go
-func (s *pyStruct) Pack(intf ...interface{}) ([]byte, error)
+func (s *PyStruct) Pack(intf ...interface{}) ([]byte, error)
 ```
 
 ##### func PackInto
 ([⬆️PackInto](#func-packinto))
 ```go
-func (s *pyStruct) PackInto(buffer []byte, offset int, intf ...interface{}) ([]byte, error) 
+func (s *PyStruct) PackInto(buffer []byte, offset int, intf ...interface{}) ([]byte, error) 
 ```
 
 ##### func Unpack
 ([⬆️Unpack](#func-unpack))
 ```go
-func (s *pyStruct) Unpack(buffer []byte) ([]interface{}, error)
+func (s *PyStruct) Unpack(buffer []byte) ([]interface{}, error)
 ```
 
 ##### func UnpackFrom
 ([⬆️UnpackFrom](#func-unpackfrom))
 ```go
-func (s *pyStruct) UnpackFrom(buffer []byte, offset int) ([]interface{}, error) 
+func (s *PyStruct) UnpackFrom(buffer []byte, offset int) ([]interface{}, error) 
 ```
 
 ##### func IterUnpack
 ([⬆️IterUnpack](#func-iterunpack))
 ```go
-func (s *pyStruct) IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
+func (s *PyStruct) IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 ```
 
 ### Not yet implemented

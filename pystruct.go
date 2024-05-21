@@ -103,8 +103,8 @@ func parseFormatAndCalcSize(format string) (binary.ByteOrder, []formatGroup, int
 	return order, groups, buffer_size, items_num, nil
 }
 
-// NewStruct(fmt) --> compiled pyStruct object
-type pyStruct struct {
+// NewStruct(fmt) --> compiled PyStruct object
+type PyStruct struct {
 	format    string
 	order     binary.ByteOrder
 	size      int
@@ -113,12 +113,12 @@ type pyStruct struct {
 }
 
 // NewStruct(fmt) --> compiled pyStruct object
-func NewStruct(format string) (pyStruct, error) {
+func NewStruct(format string) (PyStruct, error) {
 	order, groups, size, items_num, err := parseFormatAndCalcSize(format)
 	if err != nil {
-		return pyStruct{}, err
+		return PyStruct{}, err
 	}
-	return pyStruct{
+	return PyStruct{
 		format:    format,
 		size:      size,
 		order:     order,
@@ -127,17 +127,17 @@ func NewStruct(format string) (pyStruct, error) {
 	}, nil
 }
 
-func (s *pyStruct) Format() string {
+func (s *PyStruct) Format() string {
 	return s.format
 }
 
-func (s *pyStruct) Size() int {
+func (s *PyStruct) Size() int {
 	return s.size
 }
 
 // Return a bytes object containing the values v1, v2, … packed according to the format string format.
 // The arguments must match the values required by the format exactly.
-func (s *pyStruct) Pack(intf ...interface{}) ([]byte, error) {
+func (s *PyStruct) Pack(intf ...interface{}) ([]byte, error) {
 	var buffer []byte
 
 	if s.items_num != len(intf) {
@@ -169,7 +169,7 @@ func (s *pyStruct) Pack(intf ...interface{}) ([]byte, error) {
 // Pack the values v1, v2, … according to the format string format
 // and write the packed bytes into the writable buffer
 // starting at position offset. Note that offset is a required argument.
-func (s *pyStruct) PackInto(buffer []byte, offset int, intf ...interface{}) ([]byte, error) {
+func (s *PyStruct) PackInto(buffer []byte, offset int, intf ...interface{}) ([]byte, error) {
 	partBuf, err := s.Pack(intf...)
 	if err != nil {
 		return nil, err
@@ -196,7 +196,7 @@ func (s *pyStruct) PackInto(buffer []byte, offset int, intf ...interface{}) ([]b
 // The result is an []interface{} even if it contains exactly one item.
 // The buffer’s size in bytes, starting at position offset,
 // must be at least the size required by the format, as reflected by CalcSize().
-func (s *pyStruct) UnpackFrom(buffer []byte, offset int) ([]interface{}, error) {
+func (s *PyStruct) UnpackFrom(buffer []byte, offset int) ([]interface{}, error) {
 	var parsedValues []interface{}
 
 	if len(buffer)-offset != s.size {
@@ -226,14 +226,14 @@ func (s *pyStruct) UnpackFrom(buffer []byte, offset int) ([]interface{}, error) 
 // Unpack from the buffer buffer (presumably packed by Pack(format, ...))
 // according to the format string format. The result is an []interface{} even if it contains exactly one item.
 // The buffer’s size in bytes must match the size required by the format, as reflected by CalcSize().
-func (s *pyStruct) Unpack(format string, buffer []byte) ([]interface{}, error) {
+func (s *PyStruct) Unpack(buffer []byte) ([]interface{}, error) {
 	return s.UnpackFrom(buffer, 0)
 }
 
 // Iteratively unpack from the buffer buffer according to the format string format.
 // This function returns an iterator which will read equally sized chunks from the buffer until all its contents have been consumed.
 // The buffer’s size in bytes must be a multiple of the size required by the format, as reflected by CalcSize()
-func (s *pyStruct) IterUnpack(buffer []byte) (<-chan interface{}, <-chan error) {
+func (s *PyStruct) IterUnpack(buffer []byte) (<-chan interface{}, <-chan error) {
 	parsedValues := make(chan interface{})
 	errors := make(chan error)
 
