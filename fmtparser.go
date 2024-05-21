@@ -80,27 +80,96 @@ func parseFormat(format string) (binary.ByteOrder, []formatGroup, error) {
 	return order, formatGroups, nil
 }
 
-func parseFormatAndCalcSize(format string) (binary.ByteOrder, []formatGroup, int, error) {
+func parseFormatAndCalcSize(format string) (binary.ByteOrder, []formatGroup, int, int, error) {
 	order, groups, err := parseFormat(format)
 	if err != nil {
-		return nil, nil, -1, err
+		return nil, nil, -1, -1, err
 	}
-	size := 0
+	buffer_size := 0
+	items_number := 0
 	for _, group := range groups {
-		size += group.number * group.alignment()
+		buffer_size += group.number * group.alignment()
+		if group.format == String {
+			items_number++
+		} else {
+			items_number += group.number
+		}
 	}
-	return order, groups, size, nil
+	return order, groups, buffer_size, items_number, nil
 }
 
 // Return the size of the struct
 // (and hence of the bytes object produced by pack(format, ...))
 // corresponding to the format string format
 func NewCalcSize(format string) (int, error) {
-	_, _, size, err := parseFormatAndCalcSize(format)
+	_, _, size, _, err := parseFormatAndCalcSize(format)
 	if err != nil {
 		return -1, err
 	}
 	return size, nil
+}
+
+// Return a bytes object containing the values v1, v2, … packed according to the format string format.
+// The arguments must match the values required by the format exactly.
+func NewPack(format string, intf ...interface{}) ([]byte, error) {
+	var buffer []byte
+
+	order, groups, _, items_number, err := parseFormatAndCalcSize(format)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if items_number != len(intf) {
+		return nil, fmt.Errorf("struct.error: format requires %d items, got %d", items_number, len(intf))
+	}
+
+	for i, group := range groups {
+		if group.format == String {
+			switch value := intf[i].(type) {
+			case string:
+				buffer = append(buffer, buildString(value)...)
+			default:
+				return nil, fmt.Errorf("struct.error: argument for 's' must be a bytes object")
+			}
+		} else {
+			for num := 0; num < group.number; num++ {
+				if data := buildValue(intf[i], group.format, order); data != nil {
+					buffer = append(buffer, data...)
+				} else {
+					return nil, fmt.Errorf("struct.error: required argument is not an %s", CFormatStringMap[group.format])
+				}
+			}
+		}
+	}
+
+	return buffer, nil
+}
+
+// Pack the values v1, v2, … according to the format string format
+// and write the packed bytes into the writable buffer
+// starting at position offset. Note that offset is a required argument.
+func NewPackInto(format string, buffer []byte, offset int, intf ...interface{}) ([]byte, error) {
+	partBuf, err := NewPack(format, intf...)
+	if err != nil {
+		return nil, err
+	}
+
+	if offset < 0 {
+		return nil, fmt.Errorf("struct.error: offset have to be >= 0")
+	}
+
+	// Ensure buffer is large enough
+	requiredLength := offset + len(partBuf)
+	if requiredLength > len(buffer) {
+		// Expand the buffer
+		newBuffer := make([]byte, requiredLength)
+		copy(newBuffer, buffer)
+		buffer = newBuffer
+	}
+
+	copy(buffer[offset:], partBuf)
+	return buffer, nil
 }
 
 // Unpack from buffer starting at position offset, according to the format string format.
@@ -110,7 +179,7 @@ func NewCalcSize(format string) (int, error) {
 func NewUnpackFrom(format string, buffer []byte, offset int) ([]interface{}, error) {
 	var parsedValues []interface{}
 
-	order, groups, size, err := parseFormatAndCalcSize(format)
+	order, groups, size, _, err := parseFormatAndCalcSize(format)
 
 	if err != nil {
 		return nil, err
@@ -160,7 +229,7 @@ func NewIterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan err
 
 		offset := 0
 
-		order, groups, size, err := parseFormatAndCalcSize(format)
+		order, groups, size, _, err := parseFormatAndCalcSize(format)
 
 		if err != nil {
 			errors <- err

@@ -204,6 +204,42 @@ func TestCalcFormatSize(t *testing.T) {
 	fmt.Printf("Size of format `%s` is %d\n", format, size)
 }
 
+func TestNewPack(t *testing.T) {
+	// intf := []interface{}{"abc", 1.01, 3}
+	intf := []interface{}{"abc", 1.01}
+	// intf := []interface{}{"abc"}
+	byteArray, err := NewPack("<3sf", intf...)
+	expected := []byte{97, 98, 99, 174, 71, 129, 63}
+
+	if err != nil {
+		t.Error("Unbound error:", err)
+	}
+
+	if !bytes.Equal(byteArray, expected) {
+		t.Errorf("Expected: %v\nActual: %v\n", expected, byteArray)
+	}
+
+	fmt.Println("PASS: TestNewPack")
+}
+
+func TestNewPackInto(t *testing.T) {
+	intf := []interface{}{"abc", 1.01}
+	buffer := []byte{0xff, 0xff, 0xff, 0xff}
+	byteArray, err := NewPackInto("<3sf", buffer, 2, intf...)
+
+	expected := []byte{0xff, 0xff, 97, 98, 99, 174, 71, 129, 63}
+
+	if err != nil {
+		t.Error("Unbound error:", err)
+	}
+
+	if !bytes.Equal(byteArray, expected) {
+		t.Errorf("Expected: %v\nActual: %v\n", expected, byteArray)
+	}
+
+	fmt.Println("PASS: TestNewPackInto")
+}
+
 func TestNewUnpack(t *testing.T) {
 	byteArray := []byte{0, 0, 97, 98, 99, 100, 101, 102, 103, 97, 98, 99, 100, 101, 102, 103, 102, 103, 100, 101, 102, 103}
 	intf, err := NewUnpackFrom("<10s 2b d", byteArray, 2)
