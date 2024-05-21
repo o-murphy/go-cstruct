@@ -44,7 +44,6 @@ func addNum(num int, sRune rune) int {
 	return 0
 }
 
-// CalcSize(format)
 // Return the size of the struct
 // (and hence of the bytes object produced by pack(format, ...))
 // corresponding to the format string format
@@ -78,7 +77,6 @@ func CalcSize(format string) (int, error) {
 	return size, nil
 }
 
-// Pack(format, v1, v2, ...)
 // Return a bytes object containing the values v1, v2, … packed according to the format string format.
 // The arguments must match the values required by the format exactly.
 func Pack(format string, intf ...interface{}) ([]byte, error) {
@@ -152,7 +150,6 @@ func Pack(format string, intf ...interface{}) ([]byte, error) {
 	return buffer, nil
 }
 
-// PackInto(format, buffer, offset, v1, v2, ...)
 // Pack the values v1, v2, … according to the format string format
 // and write the packed bytes into the writable buffer
 // starting at position offset. Note that offset is a required argument.
@@ -179,7 +176,6 @@ func PackInto(format string, buffer []byte, offset int, intf ...interface{}) ([]
 	return buffer, nil
 }
 
-// Unpack(format, buffer)
 // Unpack from the buffer buffer (presumably packed by Pack(format, ...))
 // according to the format string format. The result is an []interface{} even if it contains exactly one item.
 // The buffer’s size in bytes must match the size required by the format, as reflected by CalcSize().
@@ -247,7 +243,6 @@ func Unpack(format string, buffer []byte) ([]interface{}, error) {
 
 }
 
-// IterUnpack(format, buffer)
 // Iteratively unpack from the buffer buffer according to the format string format.
 // This function returns an iterator which will read equally sized chunks from the buffer until all its contents have been consumed.
 // The buffer’s size in bytes must be a multiple of the size required by the format, as reflected by CalcSize()
@@ -324,7 +319,6 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 	return parsedValues, errors
 }
 
-// UnpackFrom(format, /, buffer, offset=0)
 // Unpack from buffer starting at position offset, according to the format string format.
 // The result is an []interface{} even if it contains exactly one item.
 // The buffer’s size in bytes, starting at position offset,

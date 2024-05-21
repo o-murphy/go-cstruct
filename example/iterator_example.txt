@@ -1,0 +1,180 @@
+// Unpacker struct to hold the state
+type Unpacker struct {
+    buffer      []byte
+    offset      int
+    order       string
+    groups      []Group
+    currentGroup int
+    currentNumber int
+}
+
+// NewUnpacker initializes a new Unpacker
+func NewUnpacker(format string, buffer []byte, offset int) (*Unpacker, error) {
+    order, groups, size, err := parseFormatAndCalcSize(format)
+    if err != nil {
+        return nil, err
+    }
+    if len(buffer[offset:]) != size {
+        return nil, fmt.Errorf("struct.error: unpack requires a buffer of %d bytes", size)
+    }
+
+    return &Unpacker{
+        buffer:       buffer[offset:],
+        offset:       0,
+        order:        order,
+        groups:       groups,
+        currentGroup: 0,
+        currentNumber: 0,
+    }, nil
+}
+
+// Next returns the next value from the buffer
+func (u *Unpacker) Next() (interface{}, error) {
+    if u.currentGroup >= len(u.groups) {
+        return nil, fmt.Errorf("no more values to unpack")
+    }
+
+    group := u.groups[u.currentGroup]
+    if group.format == String {
+        bytesShift := group.alignment() * group.number
+        value := parseString(u.buffer[u.offset : u.offset+bytesShift])
+        u.offset += bytesShift
+        u.currentGroup++
+        return value, nil
+    }
+
+    if u.currentNumber < group.number {
+        bytesShift := group.alignment()
+        value := parseValue(u.buffer[u.offset:u.offset+bytesShift], group.format, u.order)
+        u.offset += bytesShift
+        u.currentNumber++
+        if u.currentNumber == group.number {
+            u.currentGroup++
+            u.currentNumber = 0
+        }
+        return value, nil
+    }
+
+    return nil, fmt.Errorf("unexpected error during unpacking")
+}
+
+func main() {
+    buffer := []byte("example buffer data")
+    unpacker, err := NewUnpacker("format string", buffer, 0)
+    if err != nil {
+        fmt.Println("Error:", err)
+        return
+    }
+
+    for {
+        value, err := unpacker.Next()
+        if err != nil {
+            fmt.Println("End of unpacking or error:", err)
+            break
+        }
+        fmt.Println("Next value:", value)
+    }
+}
+
+
+
+package main
+
+import (
+	"bytes"
+	"fmt"
+)
+
+type Unpacker struct {
+	buffer      []byte
+	offset      int
+	order       string
+	groups      []Group
+	currentGroup int
+}
+
+// IterUnpack creates an iterator for unpacking data from a buffer based on the provided format.
+func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error) {
+	parsedValues := make(chan interface{})
+	errors := make(chan error)
+
+	go func() {
+		defer close(parsedValues)
+		defer close(errors)
+
+		// Initialize the unpacker
+		unpacker, err := NewUnpacker(format, buffer, 0)
+		if err != nil {
+			errors <- err
+			return
+		}
+
+		// Continuously read from the unpacker until there are no more values
+		for {
+			value, err := unpacker.Next()
+			if err != nil {
+				if err.Error() == "no more values to unpack" {
+					break // End the loop when no more values to unpack
+				}
+				errors <- err
+				return
+			}
+			parsedValues <- value
+		}
+	}()
+
+	return parsedValues, errors
+}
+
+// NewUnpacker initializes a new Unpacker
+func NewUnpacker(format string, buffer []byte, offset int) (*Unpacker, error) {
+	order, groups, size, err := parseFormatAndCalcSize(format)
+	if err != nil {
+		return nil, err
+	}
+	if len(buffer[offset:]) != size {
+		return nil, fmt.Errorf("struct.error: unpack requires a buffer of %d bytes", size)
+	}
+
+	return &Unpacker{
+		buffer:      buffer[offset:],
+		offset:      0,
+		order:       order,
+		groups:      groups,
+		currentGroup: 0,
+	}, nil
+}
+
+// Next returns the next value from the buffer
+func (u *Unpacker) Next() (interface{}, error) {
+	if u.currentGroup >= len(u.groups) {
+		return nil, fmt.Errorf("no more values to unpack")
+	}
+
+	group := u.groups[u.currentGroup]
+	if group.format == String {
+		bytesShift := group.alignment() * group.number
+		value := parseString(u.buffer[u.offset : u.offset+bytesShift])
+		u.offset += bytesShift
+		u.currentGroup++
+		return value, nil
+	}
+
+	bytesShift := group.alignment()
+	value := parseValue(u.buffer[u.offset:u.offset+bytesShift], group.format, u.order)
+	u.offset += bytesShift
+	return value, nil
+}
+
+func main() {
+	buffer := []byte("example buffer data")
+	values, errs := IterUnpack("format string", buffer)
+
+	for value := range values {
+		fmt.Println("Parsed value:", value)
+	}
+
+	for err := range errs {
+		fmt.Println("Error:", err)
+	}
+}
