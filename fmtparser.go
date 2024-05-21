@@ -30,12 +30,17 @@ func init() {
 }
 
 type formatGroup struct {
-	number int
-	format CFormatRune
+	number    int
+	format    CFormatRune
+	alignment int // cached alignment value
 }
 
-func (f *formatGroup) alignment() int {
-	return alignmentMap[f.format]
+func newFormatGroup(number int, format CFormatRune) formatGroup {
+	return formatGroup{
+		number:    number,
+		format:    format,
+		alignment: alignmentMap[format],
+	}
 }
 
 func strip(format string) string {
@@ -75,7 +80,7 @@ func parseFormat(format string) (binary.ByteOrder, []formatGroup, error) {
 		} else {
 			number, _ = strconv.Atoi(numberStr) // check on err not needed cause of match `\d` regexp
 		}
-		formatGroups = append(formatGroups, formatGroup{number, formatRune})
+		formatGroups = append(formatGroups, newFormatGroup(number, formatRune))
 	}
 	return order, formatGroups, nil
 }
@@ -88,7 +93,7 @@ func parseFormatAndCalcSize(format string) (binary.ByteOrder, []formatGroup, int
 	buffer_size := 0
 	items_number := 0
 	for _, group := range groups {
-		buffer_size += group.number * group.alignment()
+		buffer_size += group.number * group.alignment
 		if group.format == String {
 			items_number++
 		} else {
@@ -191,13 +196,13 @@ func NewUnpackFrom(format string, buffer []byte, offset int) ([]interface{}, err
 
 	for _, group := range groups {
 		if group.format == String {
-			bytesShift := group.alignment() * group.number
+			bytesShift := group.alignment * group.number
 			value := parseString(buffer[offset : offset+bytesShift])
 			offset += bytesShift
 			// fmt.Printf("Fmt: %c, %v, shift->%d\n", group.format, value, bytesShift)
 			parsedValues = append(parsedValues, value)
 		} else {
-			bytesShift := group.alignment()
+			bytesShift := group.alignment
 			for num := 0; num < group.number; num++ {
 				value := parseValue(buffer[offset:offset+bytesShift], group.format, order)
 				offset += bytesShift
@@ -241,13 +246,13 @@ func NewIterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan err
 
 		for _, group := range groups {
 			if group.format == String {
-				bytesShift := group.alignment() * group.number
+				bytesShift := group.alignment * group.number
 				value := parseString(buffer[offset : offset+bytesShift])
 				offset += bytesShift
 				// fmt.Printf("Fmt: %c, %v, shift->%d\n", group.format, value, bytesShift)
 				parsedValues <- value
 			} else {
-				bytesShift := group.alignment()
+				bytesShift := group.alignment
 				for num := 0; num < group.number; num++ {
 					value := parseValue(buffer[offset:offset+bytesShift], group.format, order)
 					offset += bytesShift

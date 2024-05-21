@@ -29,8 +29,6 @@ func TestCalcSize(t *testing.T) {
 			t.Errorf("Expected: 7, got %d\n", size)
 		}
 	}
-
-	fmt.Println("PASS: TestCalcSize")
 }
 
 func TestUnpack(t *testing.T) {
@@ -53,8 +51,6 @@ func TestUnpack(t *testing.T) {
 	if f, ok := intf[1].(float32); !ok {
 		t.Errorf("Second element is not a float32: %f\n", f)
 	}
-
-	fmt.Println("PASS: TestUnpack")
 }
 
 func TestIterUnpack(t *testing.T) {
@@ -95,8 +91,6 @@ func TestIterUnpack(t *testing.T) {
 	for err := range errs {
 		t.Error("Unbound error:", err)
 	}
-
-	fmt.Println("PASS: TestIterUnpack")
 }
 
 func TestUnpackFrom(t *testing.T) {
@@ -120,8 +114,6 @@ func TestUnpackFrom(t *testing.T) {
 	if f, ok := intf[1].(float32); !ok {
 		t.Errorf("Second element is not a float32: %f\n", f)
 	}
-
-	fmt.Println("PASS: TestUnpackFrom")
 }
 
 func TestPack(t *testing.T) {
@@ -138,8 +130,6 @@ func TestPack(t *testing.T) {
 	if !bytes.Equal(byteArray, expected) {
 		t.Errorf("Expected: %v\nActual: %v\n", expected, byteArray)
 	}
-
-	fmt.Println("PASS: TestPack")
 }
 
 func TestPackInto(t *testing.T) {
@@ -156,8 +146,6 @@ func TestPackInto(t *testing.T) {
 	if !bytes.Equal(byteArray, expected) {
 		t.Errorf("Expected: %v\nActual: %v\n", expected, byteArray)
 	}
-
-	fmt.Println("PASS: TestPackInto")
 }
 
 func TestWrongOrder(t *testing.T) {
@@ -172,7 +160,6 @@ func TestWrongOrder(t *testing.T) {
 	if err == nil {
 		t.Error("Order pos error:", err)
 	}
-	fmt.Println("PASS: TestWrongOrder")
 }
 
 // The new experimental methods to parse struct bellow
@@ -201,7 +188,6 @@ func TestCalcFormatSize(t *testing.T) {
 	} else if size != expectedSize {
 		t.Errorf("Size: Expected: %d\nActual: %d\n", expectedSize, size)
 	}
-	fmt.Printf("Size of format `%s` is %d\n", format, size)
 }
 
 func TestNewPack(t *testing.T) {
@@ -218,8 +204,6 @@ func TestNewPack(t *testing.T) {
 	if !bytes.Equal(byteArray, expected) {
 		t.Errorf("Expected: %v\nActual: %v\n", expected, byteArray)
 	}
-
-	fmt.Println("PASS: TestNewPack")
 }
 
 func TestNewPackInto(t *testing.T) {
@@ -237,7 +221,6 @@ func TestNewPackInto(t *testing.T) {
 		t.Errorf("Expected: %v\nActual: %v\n", expected, byteArray)
 	}
 
-	fmt.Println("PASS: TestNewPackInto")
 }
 
 func TestNewUnpack(t *testing.T) {
