@@ -15,15 +15,21 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v3
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.19' # Change this to the Go version you are using
+          go-version: '1.21.x' # Change this to the Go version you are using
+
+      - name: Install dependencies
+        run: go get .
+
+      # - name: Build
+      #   run: go build -v ./...
 
       - name: Run tests
-        run: go test ./...
+        run: go test
 
   list:
     runs-on: ubuntu-latest
@@ -32,12 +38,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v3
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.16' # Change this to the Go version you are using
+          go-version: '1.21.x' # Change this to the Go version you are using
 
       - name: Get release tag version
         run: |
