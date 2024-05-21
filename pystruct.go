@@ -32,6 +32,18 @@ func checkFormatAndBufSize(format string, expected_size int) error {
 	}
 }
 
+func addNum(num int, sRune rune) int {
+	if add, err := strconv.Atoi(string(sRune)); err == nil {
+		switch {
+		case num == 0:
+			return add
+		default:
+			return add * 10
+		}
+	}
+	return 0
+}
+
 // CalcSize(format)
 // Return the size of the struct
 // (and hence of the bytes object produced by pack(format, ...))
@@ -47,13 +59,8 @@ func CalcSize(format string) (int, error) {
 	for _, sRune := range format {
 		cFormatRune := CFormatRune(sRune)
 
-		if add, err := strconv.Atoi(string(sRune)); err == nil {
-			switch {
-			case num == 0:
-				num += add
-			default:
-				num += add * 10
-			}
+		if add := addNum(num, sRune); add > 0 {
+			num += add
 			continue
 		}
 
@@ -98,22 +105,17 @@ func Pack(format string, intf ...interface{}) ([]byte, error) {
 
 		cFormatRune := CFormatRune(sRune)
 
-		if add, err := strconv.Atoi(string(sRune)); err == nil {
-			switch {
-			case num == 0:
-				num += add
-			default:
-				num += add * 10
-			}
+		if add := addNum(num, sRune); add > 0 {
+			num += add
 			continue
-		}
-
-		if _, ok := CFormatMap[cFormatRune]; !ok {
-			return nil, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 		}
 
 		if num == 0 {
 			num = 1
+		}
+
+		if _, ok := CFormatMap[cFormatRune]; !ok {
+			return nil, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 		}
 
 		if cFormatRune == String {
@@ -201,22 +203,17 @@ func Unpack(format string, buffer []byte) ([]interface{}, error) {
 	for _, sRune := range format {
 		cFormatRune := CFormatRune(sRune)
 
-		if add, err := strconv.Atoi(string(sRune)); err == nil {
-			switch {
-			case num == 0:
-				num += add
-			default:
-				num += add * 10
-			}
+		if add := addNum(num, sRune); add > 0 {
+			num += add
 			continue
-		}
-
-		if _, ok := CFormatMap[cFormatRune]; !ok {
-			return nil, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 		}
 
 		if num == 0 {
 			num = 1
+		}
+
+		if _, ok := CFormatMap[cFormatRune]; !ok {
+			return nil, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
 		}
 
 		if cFormatRune == String {
@@ -281,13 +278,8 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 		for _, sRune := range format {
 			cFormatRune := CFormatRune(sRune)
 
-			if add, err := strconv.Atoi(string(sRune)); err == nil {
-				switch {
-				case num == 0:
-					num += add
-				default:
-					num += add * 10
-				}
+			if add := addNum(num, sRune); add > 0 {
+				num += add
 				continue
 			}
 
