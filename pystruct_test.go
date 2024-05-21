@@ -1,29 +1,27 @@
-package pystruct_test
+package pystruct
 
 import (
 	"bytes"
 	"fmt"
 	"testing"
 	"unicode"
-
-	pystruct "github.com/o-murphy/pystruct-go"
 )
 
 func TestCalcSize(t *testing.T) {
 
-	v, ok := pystruct.CFormatMap['f']
+	v, ok := CFormatMap['f']
 
 	if !ok && !unicode.IsLetter('f') {
 		t.Errorf("Is format, ok %c, %v", v, ok)
 	}
 
-	v, ok = pystruct.CFormatMap['-']
+	v, ok = CFormatMap['-']
 
 	if ok && unicode.IsLetter('-') {
 		t.Errorf("Is not format, ok %c, %v", v, ok)
 	}
 
-	size, err := pystruct.CalcSize(`<3sf`)
+	size, err := CalcSize(`<3sf`)
 	if err != nil {
 		t.Errorf("Error occured: %s\n", err)
 	} else {
@@ -38,7 +36,7 @@ func TestCalcSize(t *testing.T) {
 func TestUnpack(t *testing.T) {
 	byteArray := []byte{97, 98, 99, 100, 101, 102, 103}
 
-	intf, err := pystruct.Unpack(`<3sf`, byteArray)
+	intf, err := Unpack(`<3sf`, byteArray)
 	if err != nil {
 		t.Error("Unbound error:", err)
 	}
@@ -68,7 +66,7 @@ func TestIterUnpack(t *testing.T) {
 	// 	fmt.Println(i, value)
 	// }
 
-	iterator, errs := pystruct.IterUnpack(format, byteArray)
+	iterator, errs := IterUnpack(format, byteArray)
 
 	i := 0
 	for value := range iterator {
@@ -105,7 +103,7 @@ func TestUnpackFrom(t *testing.T) {
 
 	byteArray := []byte{0, 0, 0, 97, 98, 99, 100, 101, 102, 103}
 
-	intf, err := pystruct.UnpackFrom(`<3sf`, byteArray, 3)
+	intf, err := UnpackFrom(`<3sf`, byteArray, 3)
 
 	if err != nil {
 		t.Error("Unbound error:", err)
@@ -130,7 +128,7 @@ func TestPack(t *testing.T) {
 	// intf := []interface{}{"abc", 1.01, 3}
 	intf := []interface{}{"abc", 1.01}
 	// intf := []interface{}{"abc"}
-	byteArray, err := pystruct.Pack("<3sf", intf...)
+	byteArray, err := Pack("<3sf", intf...)
 	expected := []byte{97, 98, 99, 174, 71, 129, 63}
 
 	if err != nil {
@@ -147,7 +145,7 @@ func TestPack(t *testing.T) {
 func TestPackInto(t *testing.T) {
 	intf := []interface{}{"abc", 1.01}
 	buffer := []byte{0xff, 0xff, 0xff, 0xff}
-	byteArray, err := pystruct.PackInto("<3sf", buffer, 2, intf...)
+	byteArray, err := PackInto("<3sf", buffer, 2, intf...)
 
 	expected := []byte{0xff, 0xff, 97, 98, 99, 174, 71, 129, 63}
 
@@ -164,13 +162,13 @@ func TestPackInto(t *testing.T) {
 
 func TestWrongOrder(t *testing.T) {
 	byteArray := []byte{97, 98, 99, 100, 101, 102, 103}
-	_, err := pystruct.Unpack(`3sf`, byteArray)
+	_, err := Unpack(`3sf`, byteArray)
 
 	if err != nil {
 		t.Error("Get order error:", err)
 	}
 
-	_, err = pystruct.Unpack(`3<sf`, byteArray)
+	_, err = Unpack(`3<sf`, byteArray)
 	if err == nil {
 		t.Error("Order pos error:", err)
 	}
@@ -180,13 +178,13 @@ func TestWrongOrder(t *testing.T) {
 // The new experimental methods to parse struct bellow
 
 func TestRegexp(t *testing.T) {
-	order, groups, err := pystruct.ParseFormat("<10s2bd")
+	order, groups, err := parseFormat("<10s2bd")
 	if err == nil {
 		fmt.Println("Order:", order)
 		for i, group := range groups {
 			fmt.Printf(
 				"Group %d:\tnum=%d\tfmt=%c\talign=%dbyte(s)\n",
-				i, group.Number, group.Format, group.Alignment(),
+				i, group.Number, group.Format, group.alignment(),
 			)
 		}
 	} else {
@@ -197,7 +195,7 @@ func TestRegexp(t *testing.T) {
 func TestCalcFormatSize(t *testing.T) {
 	format := "<10s2bd"
 	expectedSize := 20
-	size, err := pystruct.CalcFormatSize("<10s2bd")
+	size, err := CalcFormatSize("<10s2bd")
 	if size < 0 {
 		t.Error("Error:", err)
 	} else if size != expectedSize {

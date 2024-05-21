@@ -34,11 +34,11 @@ type formatGroup struct {
 	Format CFormatRune
 }
 
-func (f *formatGroup) Alignment() int {
+func (f *formatGroup) alignment() int {
 	return alignmentMap[f.Format]
 }
 
-func ParseFormat(format string) (binary.ByteOrder, []formatGroup, error) {
+func parseFormat(format string) (binary.ByteOrder, []formatGroup, error) {
 	var order binary.ByteOrder = getNativeOrder()
 	var formatGroups []formatGroup
 
@@ -78,13 +78,13 @@ func ParseFormat(format string) (binary.ByteOrder, []formatGroup, error) {
 }
 
 func CalcFormatSize(format string) (int, error) {
-	_, groups, err := ParseFormat(format)
+	_, groups, err := parseFormat(format)
 	if err != nil {
 		return -1, err
 	}
 	count := 0
 	for _, group := range groups {
-		count += group.Number * group.Alignment()
+		count += group.Number * group.alignment()
 	}
 	return count, nil
 }
