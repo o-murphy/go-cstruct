@@ -1,160 +1,176 @@
 package pystruct
 
 import (
-	"bytes"
+	"encoding/binary"
 	"fmt"
-	"io"
+	"regexp"
 	"strconv"
+	"strings"
 )
 
-func readValue(reader *bytes.Reader, t CFormatRune) ([]byte, error) {
-	value := []byte{}
+var formatPattern string = `^([@<>=!])?((\d*[cbBhHiIqQlLfds])+)$`
+var groupPattern string = `(\d*)([cbBhHiIqQlLfds])`
+var formatRegexp *regexp.Regexp
+var groupRegexp *regexp.Regexp
 
-	for i := 0; i < alignmentMap[t]; i++ {
-		b, err := reader.ReadByte()
-		if err == io.EOF {
-			return nil, fmt.Errorf("EOF: data content size less than format requires")
-		}
-		value = append(value, b)
+func init() {
+	// Compile the regular expression
+	fmtRe, err := regexp.Compile(formatPattern)
+	if err != nil {
+		panic(fmt.Sprint("Error compiling format regex:", err))
 	}
-	return value, nil
+	formatRegexp = fmtRe
+
+	// Define the regex for individual groups with separate capture for number and char
+	groupRe, err := regexp.Compile(groupPattern)
+	if err != nil {
+		panic(fmt.Sprint("Error compiling group regex:", err))
+	}
+	groupRegexp = groupRe
 }
 
-func checkFormatAndBufSize(format string, expected_size int) error {
-	fmt_size, err := CalcSize(format)
-	switch {
-	case err != nil:
-		return err
-	case fmt_size != expected_size:
-		return fmt.Errorf("struct.error: unpack requires a buffer of %d bytes", fmt_size)
-	default:
-		return nil
+type formatGroup struct {
+	number    int
+	format    CFormatRune
+	alignment int // cached alignment value
+}
+
+func newFormatGroup(number int, format CFormatRune) formatGroup {
+	return formatGroup{
+		number:    number,
+		format:    format,
+		alignment: FormatAlignmentMap[format],
 	}
 }
 
-func addNum(num int, sRune rune) int {
-	if add, err := strconv.Atoi(string(sRune)); err == nil {
-		switch {
-		case num == 0:
-			return add
-		default:
-			return add * 10
-		}
-	}
-	return 0
+func strip(format string) string {
+	return strings.ReplaceAll(format, " ", "")
 }
 
-// Return the size of the struct
-// (and hence of the bytes object produced by pack(format, ...))
-// corresponding to the format string format
-func CalcSize(format string) (int, error) {
-	num := 0
-	size := 0
+func parseFormat(format string) (binary.ByteOrder, []formatGroup, error) {
+	var order binary.ByteOrder = getNativeOrder()
+	var formatGroups []formatGroup
 
-	if _, ok := OrderMap[rune(format[0])]; ok {
-		format = format[1:]
+	format = strip(format)
+
+	// Find the entire match with submatches
+	matches := formatRegexp.FindStringSubmatch(format)
+	if len(matches) == 0 {
+		return nil, nil, fmt.Errorf("struct.error: Unexpected struct format %s", format)
 	}
 
-	for _, sRune := range format {
-		cFormatRune := CFormatRune(sRune)
-
-		if add := addNum(num, sRune); add > 0 {
-			num += add
-			continue
-		}
-
-		if num == 0 {
-			num = 1
-		}
-
-		if _, ok := CFormatMap[cFormatRune]; !ok {
-			return -1, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
-		}
-
-		size += num * alignmentMap[cFormatRune]
-		num = 0
+	// Extract and print the prefix if present
+	if prefix := matches[1]; prefix != "" {
+		order, _ = getOrder(rune(prefix[0]))
 	}
-	return size, nil
+
+	// Extract the groups (matches[2])
+	// Find all individual groups
+	individualMatches := groupRegexp.FindAllStringSubmatch(matches[2], -1)
+
+	// Print each group with parsed number and char
+	for _, match := range individualMatches {
+		var number int
+
+		numberStr := match[1]
+		formatRune := CFormatRune(rune(match[2][0]))
+
+		if numberStr == "" {
+			number = 1
+		} else {
+			number, _ = strconv.Atoi(numberStr) // check on err not needed cause of match `\d` regexp
+		}
+		formatGroups = append(formatGroups, newFormatGroup(number, formatRune))
+	}
+	return order, formatGroups, nil
+}
+
+func parseFormatAndCalcSize(format string) (binary.ByteOrder, []formatGroup, int, int, error) {
+	order, groups, err := parseFormat(format)
+	if err != nil {
+		return nil, nil, -1, -1, err
+	}
+	buffer_size := 0
+	items_num := 0
+	for _, group := range groups {
+		buffer_size += group.number * group.alignment
+		if group.format == String {
+			items_num++
+		} else {
+			items_num += group.number
+		}
+	}
+	return order, groups, buffer_size, items_num, nil
+}
+
+// NewStruct(fmt) --> compiled pyStruct object
+type pyStruct struct {
+	format    string
+	order     binary.ByteOrder
+	size      int
+	items_num int
+	groups    []formatGroup
+}
+
+// NewStruct(fmt) --> compiled pyStruct object
+func NewStruct(format string) (pyStruct, error) {
+	order, groups, size, items_num, err := parseFormatAndCalcSize(format)
+	if err != nil {
+		return pyStruct{}, err
+	}
+	return pyStruct{
+		format:    format,
+		size:      size,
+		order:     order,
+		groups:    groups,
+		items_num: items_num,
+	}, nil
+}
+
+func (s *pyStruct) Format() string {
+	return s.format
+}
+
+func (s *pyStruct) Size() int {
+	return s.size
 }
 
 // Return a bytes object containing the values v1, v2, … packed according to the format string format.
 // The arguments must match the values required by the format exactly.
-func Pack(format string, intf ...interface{}) ([]byte, error) {
-
-	if _, err := CalcSize(format); err != nil {
-		return nil, err
-	}
-
-	num := 0
-	index := 0
+func (s *pyStruct) Pack(intf ...interface{}) ([]byte, error) {
 	var buffer []byte
 
-	order, _ := getOrder(rune(format[0]))
-	if order != nil {
-		format = format[1:]
-	} else {
-		order = getNativeOrder()
+	if s.items_num != len(intf) {
+		return nil, fmt.Errorf("struct.error: format requires %d items, got %d", s.items_num, len(intf))
 	}
 
-	for _, sRune := range format {
-		if index+1 > len(intf) {
-			return buffer, fmt.Errorf("struct.error: index error, number of interface items less than format requires")
-		}
-
-		cFormatRune := CFormatRune(sRune)
-
-		if add := addNum(num, sRune); add > 0 {
-			num += add
-			continue
-		}
-
-		if num == 0 {
-			num = 1
-		}
-
-		if _, ok := CFormatMap[cFormatRune]; !ok {
-			return nil, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
-		}
-
-		if cFormatRune == String {
-
-			value := intf[index]
-
-			switch v := value.(type) {
+	for i, group := range s.groups {
+		if group.format == String {
+			switch value := intf[i].(type) {
 			case string:
-				buffer = append(buffer, buildString(v)...)
+				buffer = append(buffer, buildString(value)...)
 			default:
 				return nil, fmt.Errorf("struct.error: argument for 's' must be a bytes object")
 			}
-			num = 0
-			index += 1
-			continue
-		}
-
-		for i := 0; i < num; i++ {
-
-			if data := buildValue(intf[index], cFormatRune, order); data != nil {
-				buffer = append(buffer, data...)
-				index += 1
-			} else {
-				return nil, fmt.Errorf("struct.error: required argument is not an %s", CFormatStringMap[cFormatRune])
+		} else {
+			for num := 0; num < group.number; num++ {
+				if data := buildValue(intf[i], group.format, s.order); data != nil {
+					buffer = append(buffer, data...)
+				} else {
+					return nil, fmt.Errorf("struct.error: required argument is not an %s", CFormatStringMap[group.format])
+				}
 			}
-
 		}
-		num = 0
+	}
 
-	}
-	if len(intf) > index {
-		return buffer, fmt.Errorf("struct.error: found %d extra items that wouldn't be parsed", len(intf)-index)
-	}
 	return buffer, nil
 }
 
 // Pack the values v1, v2, … according to the format string format
 // and write the packed bytes into the writable buffer
 // starting at position offset. Note that offset is a required argument.
-func PackInto(format string, buffer []byte, offset int, intf ...interface{}) ([]byte, error) {
-	partBuf, err := Pack(format, intf...)
+func (s *pyStruct) PackInto(buffer []byte, offset int, intf ...interface{}) ([]byte, error) {
+	partBuf, err := s.Pack(intf...)
 	if err != nil {
 		return nil, err
 	}
@@ -176,78 +192,48 @@ func PackInto(format string, buffer []byte, offset int, intf ...interface{}) ([]
 	return buffer, nil
 }
 
+// Unpack from buffer starting at position offset, according to the format string format.
+// The result is an []interface{} even if it contains exactly one item.
+// The buffer’s size in bytes, starting at position offset,
+// must be at least the size required by the format, as reflected by CalcSize().
+func (s *pyStruct) UnpackFrom(buffer []byte, offset int) ([]interface{}, error) {
+	var parsedValues []interface{}
+
+	if len(buffer)-offset != s.size {
+		return nil, fmt.Errorf("struct.error: unpack requires a buffer of %d bytes", s.size)
+	}
+
+	for _, group := range s.groups {
+		if group.format == String {
+			bytesShift := group.alignment * group.number
+			value := parseString(buffer[offset : offset+bytesShift])
+			offset += bytesShift
+			// fmt.Printf("Fmt: %c, %v, shift->%d\n", group.format, value, bytesShift)
+			parsedValues = append(parsedValues, value)
+		} else {
+			bytesShift := group.alignment
+			for num := 0; num < group.number; num++ {
+				value := parseValue(buffer[offset:offset+bytesShift], group.format, s.order)
+				offset += bytesShift
+				// fmt.Printf("Fmt: %c, %v, shift->%d\n", group.format, value, bytesShift)
+				parsedValues = append(parsedValues, value)
+			}
+		}
+	}
+	return parsedValues, nil
+}
+
 // Unpack from the buffer buffer (presumably packed by Pack(format, ...))
 // according to the format string format. The result is an []interface{} even if it contains exactly one item.
 // The buffer’s size in bytes must match the size required by the format, as reflected by CalcSize().
-func Unpack(format string, buffer []byte) ([]interface{}, error) {
-
-	if err := checkFormatAndBufSize(format, len(buffer)); err != nil {
-		return nil, err
-	}
-
-	num := 0
-	var parsedValues []interface{}
-	reader := bytes.NewReader(buffer)
-
-	order, _ := getOrder(rune(format[0]))
-	if order != nil {
-		format = format[1:]
-	} else {
-		order = getNativeOrder()
-	}
-
-	for _, sRune := range format {
-		cFormatRune := CFormatRune(sRune)
-
-		if add := addNum(num, sRune); add > 0 {
-			num += add
-			continue
-		}
-
-		if num == 0 {
-			num = 1
-		}
-
-		if _, ok := CFormatMap[cFormatRune]; !ok {
-			return nil, fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
-		}
-
-		if cFormatRune == String {
-			value := ""
-			for i := 0; i < num; i++ {
-				if rawValue, err := readValue(reader, cFormatRune); err != nil {
-					return nil, err
-				} else {
-					value += parseString(rawValue)
-				}
-			}
-			parsedValues = append(parsedValues, value)
-			num = 0
-			continue
-		}
-
-		for i := 0; i < num; i++ {
-
-			if rawValue, err := readValue(reader, cFormatRune); err != nil {
-				return nil, err
-			} else {
-				if value := parseValue(rawValue, cFormatRune, order); value != nil {
-					parsedValues = append(parsedValues, value)
-				}
-			}
-		}
-		num = 0
-
-	}
-	return parsedValues, nil
-
+func (s *pyStruct) Unpack(format string, buffer []byte) ([]interface{}, error) {
+	return s.UnpackFrom(buffer, 0)
 }
 
 // Iteratively unpack from the buffer buffer according to the format string format.
 // This function returns an iterator which will read equally sized chunks from the buffer until all its contents have been consumed.
 // The buffer’s size in bytes must be a multiple of the size required by the format, as reflected by CalcSize()
-func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error) {
-
+func (s *pyStruct) IterUnpack(buffer []byte) (<-chan interface{}, <-chan error) {
 	parsedValues := make(chan interface{})
 	errors := make(chan error)
 
@@ -255,68 +241,64 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 		defer close(parsedValues)
 		defer close(errors)
 
-		if err := checkFormatAndBufSize(format, len(buffer)); err != nil {
-			errors <- err
-			return
+		offset := 0
+
+		if len(buffer)-offset != s.size {
+			errors <- fmt.Errorf("struct.error: unpack requires a buffer of %d bytes", s.size)
 		}
 
-		num := 0
-		reader := bytes.NewReader(buffer)
-
-		order, _ := getOrder(rune(format[0]))
-		if order != nil {
-			format = format[1:]
-		} else {
-			order = getNativeOrder()
-		}
-
-		for _, sRune := range format {
-			cFormatRune := CFormatRune(sRune)
-
-			if add := addNum(num, sRune); add > 0 {
-				num += add
-				continue
-			}
-
-			if _, ok := CFormatMap[cFormatRune]; !ok {
-				errors <- fmt.Errorf("struct.error: bad char ('%c') in struct format", cFormatRune)
-				return
-			}
-
-			if num == 0 {
-				num = 1
-			}
-
-			if cFormatRune == String {
-				value := ""
-				for i := 0; i < num; i++ {
-					if rawValue, err := readValue(reader, cFormatRune); err != nil {
-						errors <- err
-						return
-					} else {
-						value += string(rawValue)
-					}
-				}
+		for _, group := range s.groups {
+			if group.format == String {
+				bytesShift := group.alignment * group.number
+				value := parseString(buffer[offset : offset+bytesShift])
+				offset += bytesShift
+				// fmt.Printf("Fmt: %c, %v, shift->%d\n", group.format, value, bytesShift)
 				parsedValues <- value
-				num = 0
-				continue
-			}
-
-			for i := 0; i < num; i++ {
-				if rawValue, err := readValue(reader, cFormatRune); err != nil {
-					errors <- err
-					return
-				} else {
-					if value := parseValue(rawValue, cFormatRune, order); value != nil {
-						parsedValues <- value
-					}
+			} else {
+				bytesShift := group.alignment
+				for num := 0; num < group.number; num++ {
+					value := parseValue(buffer[offset:offset+bytesShift], group.format, s.order)
+					offset += bytesShift
+					// fmt.Printf("Fmt: %c, %v, shift->%d\n", group.format, value, bytesShift)
+					parsedValues <- value
 				}
 			}
-			num = 0
 		}
 	}()
 
 	return parsedValues, errors
+}
+
+// Return the size of the struct
+// (and hence of the bytes object produced by pack(format, ...))
+// corresponding to the format string format
+func CalcSize(format string) (int, error) {
+	_, _, size, _, err := parseFormatAndCalcSize(format)
+	if err != nil {
+		return -1, err
+	}
+	return size, nil
+}
+
+// Return a bytes object containing the values v1, v2, … packed according to the format string format.
+// The arguments must match the values required by the format exactly.
+func Pack(format string, intf ...interface{}) ([]byte, error) {
+	s, err := NewStruct(format)
+	if err != nil {
+		return nil, err
+	}
+	return s.Pack(intf...)
+}
+
+// Pack the values v1, v2, … according to the format string format
+// and write the packed bytes into the writable buffer
+// starting at position offset. Note that offset is a required argument.
+func PackInto(format string, buffer []byte, offset int, intf ...interface{}) ([]byte, error) {
+	s, err := NewStruct(format)
+	if err != nil {
+		return nil, err
+	}
+	return s.PackInto(buffer, offset, intf...)
 }
 
 // Unpack from buffer starting at position offset, according to the format string format.
@@ -324,43 +306,49 @@ func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error)
 // The buffer’s size in bytes, starting at position offset,
 // must be at least the size required by the format, as reflected by CalcSize().
 func UnpackFrom(format string, buffer []byte, offset int) ([]interface{}, error) {
-	if offset >= len(buffer) {
-		return nil, fmt.Errorf("offset is out of range")
+	s, err := NewStruct(format)
+	if err != nil {
+		return nil, err
 	}
-	return Unpack(format, buffer[offset:])
+	return s.UnpackFrom(buffer, offset)
 }
 
-// Struct(fmt) --> compiled struct object
-type Struct struct {
-	format string
+// Unpack from the buffer buffer (presumably packed by Pack(format, ...))
+// according to the format string format. The result is an []interface{} even if it contains exactly one item.
+// The buffer’s size in bytes must match the size required by the format, as reflected by CalcSize().
+func Unpack(format string, buffer []byte) ([]interface{}, error) {
+	s, err := NewStruct(format)
+	if err != nil {
+		return nil, err
+	}
+	return s.UnpackFrom(buffer, 0)
 }
 
-// bind method CalcSize for Struct instance
-func (s *Struct) CalcSize() (int, error) {
-	return CalcSize(s.format)
-}
+// Iteratively unpack from the buffer buffer according to the format string format.
+// This function returns an iterator which will read equally sized chunks from the buffer until all its contents have been consumed.
+// The buffer’s size in bytes must be a multiple of the size required by the format, as reflected by CalcSize()
+func IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error) {
+	parsedValues := make(chan interface{})
+	errors := make(chan error)
 
-// bind method Pack for Struct instance
-func (s *Struct) Pack(intf ...interface{}) ([]byte, error) {
-	return Pack(s.format)
-}
+	go func() {
+		defer close(parsedValues)
+		defer close(errors)
 
-// bind method PackInto for Struct instance
-func (s *Struct) PackInto(buffer []byte, offset int, intf ...interface{}) ([]byte, error) {
-	return PackInto(s.format, buffer, offset)
-}
+		s, err := NewStruct(format)
+		if err != nil {
+			errors <- err
+			return
+		}
 
-// bind method Unpack for Struct instance
-func (s *Struct) Unpack(buffer []byte) ([]interface{}, error) {
-	return Unpack(s.format, buffer)
-}
+		values, errs := s.IterUnpack(buffer)
+		for v := range values {
+			parsedValues <- v
+		}
+		for e := range errs {
+			errors <- e
+		}
+	}()
 
-// bind method UnpackFrom for Struct instance
-func (s *Struct) UnpackFrom(buffer []byte, offset int) ([]interface{}, error) {
-	return UnpackFrom(s.format, buffer, offset)
-}
-
-// bind method IterUnpack for Struct instance
-func (s *Struct) IterUnpack(format string, buffer []byte) (<-chan interface{}, <-chan error) {
-	return IterUnpack(s.format, buffer)
+	return parsedValues, errors
 }

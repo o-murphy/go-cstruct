@@ -74,6 +74,11 @@ func main() {
 		fmt.Println("Equal")
 	}
 
+	// or use struct
+	s := pystruct.NewStruct(`<3sf`)
+	byteArray, err := s.Pack(`<3sf`, intf)
+	intf, err := s.Unpack(byteArray)
+
 }
 ```
 
